@@ -1,5 +1,7 @@
 # TaskGraph
 
+**NOTE**: TaskGraph is in the early prototype stage. The design is still changing and the source code is under active development, thus the documentation may be inaccurate.
+
 TaskGraph is a simple application for personal project management.
 It utilizes some ideas from asynchronous programming, cooperative multitasking and git versioning to help you finish projects more efficiently.
 
