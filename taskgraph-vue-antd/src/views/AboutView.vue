@@ -16,9 +16,9 @@
           for more information.
         </a-typography-paragraph>
         <a-typography-paragraph>
-          The TaskGraph project is an open source project management application that utilizes some
-          ideas from asynchronous programming, cooperative multitasking and git versioning to help
-          you finish projects more efficiently.
+          The TaskGraph project is an open source project management application that utilizes ideas
+          from asynchronous programming, cooperative multitasking and git versioning to help you
+          finish projects more efficiently.
         </a-typography-paragraph>
         <a-typography-paragraph>
           taskgraph-vue-antd is a submodule of TaskGraph that provides Web UI to communicate with

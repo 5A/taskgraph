@@ -1,7 +1,7 @@
 <template>
   <a-card title="Projects Overview">
     <template #extra>
-      <a-button type="primary" @click="showNewProjectModal"> New </a-button>
+      <a-button type="primary" @click="showNewProjectModal"> <PlusCircleOutlined />New </a-button>
     </template>
     <a-modal
       v-model:open="newProjectModalOpen"
@@ -30,6 +30,7 @@
 import { ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { message as ant_message } from 'ant-design-vue'
+import { PlusCircleOutlined } from '@ant-design/icons-vue'
 import { useProjectListStore, useProjectOperationInputStore } from '@/store/projects'
 import { type ProjectListItem } from '@/store/projects'
 import { callRESTfulAPI } from '@/common/connection'

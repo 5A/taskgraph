@@ -445,6 +445,13 @@ function get_cytoscape_style(): any {
   return export_style
 }
 
+function get_cytoscape_layout(): any {
+  return {
+    name: projectOperationInputStore.projectDagViewInputState.layout,
+    nodeDimensionsIncludeLabels: true // for Dagre
+  }
+}
+
 const cytoscapeContainer = ref(null)
 const cytoscapeInstance = ref<cytoscape.Core>()
 
@@ -458,10 +465,7 @@ const initCytoscape = () => {
     container: cytoscapeContainer.value,
     elements: construct_cytoscape_data(currentProject.value),
     style: get_cytoscape_style(),
-    layout: {
-      name: projectOperationInputStore.projectDagViewInputState.layout,
-      nodeDimensionsIncludeLabels: true // for Dagre
-    },
+    layout: get_cytoscape_layout(),
     minZoom: 0.1,
     maxZoom: 2.0
   })
@@ -663,20 +667,25 @@ async function onAddDependencies() {
 async function onRemoveDependency() {
   if (projectInputState.selected_edge) {
     const selected_edge = cytoscapeInstance.value?.$id(projectInputState.selected_edge)
-    await callRESTfulAPI(
-      `projects/${projectUUID.value}`,
-      'POST',
-      JSON.stringify({
-        remove_dependency: {
-          uuid_super_task: selected_edge.target().id(),
-          uuid_sub_task: selected_edge.source().id()
+    if (selected_edge) {
+      await callRESTfulAPI(
+        `projects/${projectUUID.value}`,
+        'POST',
+        JSON.stringify({
+          remove_dependency: {
+            uuid_super_task: selected_edge.target().id(),
+            uuid_sub_task: selected_edge.source().id()
+          }
+        })
+      ).then((response) => {
+        if (response?.result == 'OK') {
+          message.warning('Dependency removed')
         }
       })
-    ).then((response) => {
-      if (response?.result == 'OK') {
-        message.warning('Dependency removed')
-      }
-    })
+    } else {
+      console.error('Unexpected: selected edge does not exist in cytoscape data')
+      console.log(projectInputState.selected_edge)
+    }
   } else {
     message.error(
       'Please select an edge before the operation \
