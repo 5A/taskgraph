@@ -4,11 +4,11 @@ import networkx as nx
 from taskgraph import TaskGraphProject
 
 proj = TaskGraphProject()
-task1 = proj.add_task(proj.task_root)
-task2 = proj.add_task(proj.task_root)
-task3 = proj.add_task(proj.task_root)
-task4 = proj.add_task(task1)
-task5 = proj.add_task(task2)
+task1 = proj.add_sub_task(proj.task_root)
+task2 = proj.add_sub_task(proj.task_root)
+task3 = proj.add_sub_task(proj.task_root)
+task4 = proj.add_sub_task(task1)
+task5 = proj.add_sub_task(task2)
 proj.add_dependency(task5, task1)
 
 for layer, nodes in enumerate(nx.topological_generations(proj.dag)):

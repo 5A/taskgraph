@@ -18,15 +18,16 @@ class TaskGraphDatabaseManager():
         self.cfg = database_config
 
     def load_projects(self, tg_data: TaskGraphData):
-        for item in tg_data.projects:
-            lg.info("Loading project {}".format(item))
+        for project_id in tg_data.projects:
+            project_name = tg_data.projects[project_id].name
+            lg.info("Loading project {} ({})".format(project_name, project_id))
             project_db_path = self.cfg.root_path + \
-                "projects/{}.json".format(item.id)
+                "projects/{}.json".format(project_id)
             if os.path.exists(project_db_path):
-                self.tg.load_project_from_file(project_db_path, item.id)
+                self.tg.load_project_from_file(project_db_path, project_id)
             else:
                 lg.error(
-                    "Cannot find database file for project {}!".format(item))
+                    "Cannot find database file for project {}!".format(project_id))
                 lg.error("The DB item will be removed from project.json.")
 
     def load_database(self):
@@ -34,8 +35,9 @@ class TaskGraphDatabaseManager():
         projects_db_path = root_path + "projects.json"
         if os.path.exists(projects_db_path):
             lg.info("Database file found, loading projects.")
-            with open(projects_db_path, 'r') as f:
-                r = json.load(f)
+            with open(projects_db_path, 'rb') as f:
+                r = f.read().decode("utf-8")
+                r = json.loads(r)
             data = TaskGraphData(**r)
             self.load_projects(tg_data=data)
         else:
@@ -71,3 +73,17 @@ class TaskGraphDatabaseManager():
                 projects_db_path))
         self.save_projects()
         self.tg.serialize_to_file(projects_db_path)
+
+    def delete_project(self, project_id: str):
+        self.tg.remove_project(project_id=project_id)
+        # SECURITY NOTICE:
+        #   execute only if project_id is trustworthy.
+        project_db_path = self.cfg.root_path + \
+            "projects/{}.json".format(project_id)
+        if os.path.exists(project_db_path):
+            lg.warning("Deleting project database file at {}".format(
+                project_db_path))
+            os.remove(project_db_path)
+        else:
+            lg.warning("Did not find project database file {} when deleting project".format(
+                project_db_path))

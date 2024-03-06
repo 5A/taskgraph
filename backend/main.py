@@ -22,7 +22,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ValidationError, Field
 # local libraries
-from taskgraph import TaskGraph, TaskGraphData, TaskGraphProjectData
+from taskgraph import TaskGraph, TaskGraphData, TaskStatus
 # this package
 from .server_config import server_config, UserAccessLevel
 from .auth import try_authenticate, create_access_token, validate_access_token, check_access_level
@@ -41,6 +41,79 @@ class NewProjectData(BaseModel):
     name: Optional[str] = Field(
         None, description="Name of the new project, if not specified, empty string will be used."
     )
+
+
+class DeleteProjectData(BaseModel):
+    uuid: str
+
+
+class ProjectOperationReport(BaseModel):
+    id: str
+    name: str
+
+
+class NewSubTaskData(BaseModel):
+    parent: str
+    name: Optional[str] = Field(
+        None, description="Name of the new task, if not specified, the task will be created without a name"
+    )
+    detail: Optional[str] = Field(
+        None, description="Detail of the new task, if not specified, the task will be created without a detail"
+    )
+
+
+class NewSuperTaskData(BaseModel):
+    child: str
+    name: Optional[str] = Field(
+        None, description="Name of the new task, if not specified, the task will be created without a name"
+    )
+    detail: Optional[str] = Field(
+        None, description="Detail of the new task, if not specified, the task will be created without a detail"
+    )
+
+
+class UpdateTaskStatusData(BaseModel):
+    uuid: str
+    status: TaskStatus
+
+
+class RemoveTaskData(BaseModel):
+    uuid: str
+
+
+class AddDependenciesData(BaseModel):
+    uuid: str
+    dependencies: list[str]
+
+
+class RemoveDependencyData(BaseModel):
+    uuid_sub_task: str
+    uuid_super_task: str
+
+
+class ModifyProjectData(BaseModel):
+    add_sub_task: Optional[NewSubTaskData] = Field(
+        None, description=""
+    )
+    add_super_task: Optional[NewSuperTaskData] = Field(
+        None, description=""
+    )
+    update_task_status: Optional[UpdateTaskStatusData] = Field(
+        None, description=""
+    )
+    remove_task: Optional[RemoveTaskData] = Field(
+        None, description=""
+    )
+    add_dependencies: Optional[AddDependenciesData] = Field(
+        None, description=""
+    )
+    remove_dependency: Optional[RemoveDependencyData] = Field(
+        None, description=""
+    )
+
+
+class ModifyProjectReport(BaseModel):
+    result: str
 
 
 ws_mgr = WebSocketConnectionManager()
@@ -97,18 +170,71 @@ async def login_for_access_token(form_data: Annotated[OAuth2PasswordRequestForm,
 
 
 @app.get("/projects")
-async def get_projects(token_data: Annotated[TokenData, Depends(validate_access_token)]) -> TaskGraphData:
+async def get_project_list(token_data: Annotated[TokenData, Depends(validate_access_token)]) -> TaskGraphData:
     check_access_level(token_data.access_level, UserAccessLevel.readonly)
     return tg.get_data()
 
 
 @app.post("/projects")
 async def create_project(project_data: NewProjectData,
-                         token_data: Annotated[TokenData, Depends(validate_access_token)]) -> TaskGraphData:
+                         token_data: Annotated[TokenData, Depends(validate_access_token)]) -> ProjectOperationReport:
     check_access_level(token_data.access_level, UserAccessLevel.standard)
     project_id = tg.new_project(name=project_data.name)
-    lg.info("Created new project {}".format(project_id))
-    return tg.get_data()
+    project_name = tg.projects[project_id].name
+    db_mgr.save_project(project_id=project_id)
+    lg.info("Created new project \"{}\": {}".format(project_name, project_id))
+    return ProjectOperationReport(id=project_id, name=project_name)
+
+
+@app.delete("/projects")
+async def delete_project(project_data: DeleteProjectData,
+                         token_data: Annotated[TokenData, Depends(validate_access_token)]) -> ProjectOperationReport:
+    check_access_level(token_data.access_level, UserAccessLevel.standard)
+    project_id = project_data.uuid
+    project_name = tg.projects[project_id].name
+    db_mgr.delete_project(project_id=project_id)
+    lg.info("Deleted project \"{}\": {}".format(project_name, project_id))
+    return ProjectOperationReport(id=project_id, name=project_name)
+
+
+@app.get("/projects/{project_uuid}")
+async def read_project(project_uuid: str, format: str | None = None):
+    return tg.projects[project_uuid].get_data(dag_format=format)
+
+
+@app.post("/projects/{project_uuid}")
+async def modify_project(project_uuid: str, mod_data: ModifyProjectData):
+    lg.info(mod_data)
+    proj = tg.projects[project_uuid]
+    if mod_data.add_sub_task is not None:
+        meta = dict()
+        if mod_data.add_sub_task.name is not None:
+            meta["Name"] = mod_data.add_sub_task.name
+        if mod_data.add_sub_task.detail is not None:
+            meta["Detail"] = mod_data.add_sub_task.detail
+        proj.add_sub_task(mod_data.add_sub_task.parent, meta=meta)
+    if mod_data.add_super_task is not None:
+        meta = dict()
+        if mod_data.add_super_task.name is not None:
+            meta["Name"] = mod_data.add_super_task.name
+        if mod_data.add_super_task.detail is not None:
+            meta["Detail"] = mod_data.add_super_task.detail
+        proj.add_super_task(mod_data.add_super_task.child, meta=meta)
+    if mod_data.update_task_status is not None:
+        data = mod_data.update_task_status
+        if data.status.value == "Done":
+            proj.task_done(data.uuid)
+    if mod_data.remove_task is not None:
+        proj.remove_task(mod_data.remove_task.uuid)
+    if mod_data.add_dependencies is not None:
+        for uuid in mod_data.add_dependencies.dependencies:
+            proj.add_dependency(mod_data.add_dependencies.uuid, uuid)
+    if mod_data.remove_dependency is not None:
+        proj.remove_dependency(
+            task_uuid=mod_data.remove_dependency.uuid_super_task,
+            dep_uuid=mod_data.remove_dependency.uuid_sub_task
+        )
+    return ModifyProjectReport(result="OK")
 
 
 @app.websocket("/ws")
