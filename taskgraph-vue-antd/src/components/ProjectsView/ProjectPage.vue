@@ -93,7 +93,7 @@
           </a-button>
         </a-flex>
       </template>
-      <pre>{{ selectedTaskDetail }}</pre>
+      <p style="white-space: pre-wrap">{{ selectedTaskDetail }}</p>
     </a-card>
   </a-layout-content>
   <a-page-header
@@ -448,7 +448,8 @@ function get_cytoscape_style(): any {
 function get_cytoscape_layout(): any {
   return {
     name: projectOperationInputStore.projectDagViewInputState.layout,
-    nodeDimensionsIncludeLabels: true // for Dagre
+    nodeDimensionsIncludeLabels: true, // for Dagre,
+    rankDir: 'LR' // for Dagre, 'TB' for top to bottom flow, 'LR' for left to right,
   }
 }
 

@@ -44,6 +44,10 @@ It is basically a todolist app with the following features:
   - Standard formats
   - Export to various formats
 
+Screenshots:
+
+![Project View](docs/screenshots/project_view.png?raw=true "Project View")
+
 ## Deployment
 
 TaskGraph is based on python and javascript, no installation is required.
