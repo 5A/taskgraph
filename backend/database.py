@@ -18,17 +18,21 @@ class TaskGraphDatabaseManager():
         self.cfg = database_config
 
     def load_projects(self, tg_data: TaskGraphData):
+        projects_loaded: int = 0
         for project_id in tg_data.projects:
             project_name = tg_data.projects[project_id].name
-            lg.info("Loading project {} ({})".format(project_name, project_id))
+            lg.info("Loading project: {} ({})".format(project_name, project_id))
             project_db_path = self.cfg.root_path + \
                 "projects/{}.json".format(project_id)
             if os.path.exists(project_db_path):
                 self.tg.load_project_from_file(project_db_path, project_id)
+                projects_loaded += 1
             else:
                 lg.error(
                     "Cannot find database file for project {}!".format(project_id))
                 lg.error("The DB item will be removed from project.json.")
+        lg.info("Expected to load {} projects, {} projects actually loaded.".format(
+            len(tg_data.projects), projects_loaded))
 
     def load_database(self):
         root_path = self.cfg.root_path

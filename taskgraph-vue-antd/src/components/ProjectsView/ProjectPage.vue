@@ -87,7 +87,23 @@
             <CheckCircleOutlined />
             Done
           </a-button>
-          <a-button key="2" type="primary" danger @click="onRemoveTask">
+          <a-button key="2" @click="showSnoozeTaskModal" type="primary">
+            <PauseCircleOutlined />
+            Snooze
+          </a-button>
+          <a-modal
+            v-model:open="snoozeTaskModalOpen"
+            :title="`Snooze: ${selectedTaskName}`"
+            @ok="handleSnoozeTaskModalOk"
+          >
+            <a-date-picker
+              show-time
+              placeholder="Select Time"
+              v-model:value="projectInputState.snooze_task_until"
+              style="width: 100%"
+            />
+          </a-modal>
+          <a-button key="3" type="primary" danger @click="onRemoveTask">
             <DeleteOutlined />
             Remove
           </a-button>
@@ -151,7 +167,8 @@ import {
   CheckCircleOutlined,
   DeleteOutlined,
   SyncOutlined,
-  PlusCircleOutlined
+  PlusCircleOutlined,
+  PauseCircleOutlined
 } from '@ant-design/icons-vue'
 // Graph plotting
 import cytoscape from 'cytoscape'
@@ -202,7 +219,7 @@ const selectOptionsOfTasks = computed(() =>
   listOfTasks.value
     ? listOfTasks.value.map((item) => ({
         value: item,
-        label: currentProject.value?.metadata[item]['Name']
+        label: currentProject.value?.metadata[item]['name']
       }))
     : null
 )
@@ -215,8 +232,8 @@ const projectTaskStatistics = computed(() => {
   if (currentProject.value && currentProject.value.metadata) {
     for (const item in currentProject.value.metadata) {
       const meta = currentProject.value.metadata[item]
-      if ('Status' in meta) {
-        const task_status = meta['Status']
+      if ('status' in meta) {
+        const task_status = meta['status']
         if (task_status === 'Done') {
           n_tasks_done++
         } else if (task_status === 'Active') {
@@ -263,7 +280,7 @@ watch(
   }
 )
 
-// ========== Button callbacks
+// ========== Project Management Header
 
 const deleteProjectModalOpen = ref<boolean>(false)
 
@@ -343,11 +360,11 @@ function construct_cytoscape_data(tgdata: TaskGraphProjectData | null) {
     for (const item of tgdata.DAG.nodes) {
       let data: Record<string, string> = { id: item.id }
       if (item.id in tgdata.metadata) {
-        if ('Name' in tgdata.metadata[item.id]) {
-          data['name'] = tgdata.metadata[item.id]['Name']
+        if ('name' in tgdata.metadata[item.id]) {
+          data['name'] = tgdata.metadata[item.id]['name']
         }
-        if ('Status' in tgdata.metadata[item.id]) {
-          data['status'] = tgdata.metadata[item.id]['Status']
+        if ('status' in tgdata.metadata[item.id]) {
+          data['status'] = tgdata.metadata[item.id]['status']
         }
       }
       nodes.push({
@@ -369,15 +386,15 @@ function construct_cytoscape_data(tgdata: TaskGraphProjectData | null) {
 function get_status_color(ele: any): any {
   const status: string = ele.data('status')
   if (status === 'Active') {
-    return '#5bc0de'
+    return '#5bc0de' // light blue
   } else if (status === 'Pending') {
-    return '#FFFFFF'
+    return '#FFFFFF' // white
   } else if (status === 'Done') {
-    return '#000000'
+    return '#000000' // black
   } else if (status === 'Snoozed') {
-    return '#5cb85c'
+    return '#5cb85c' // light green
   } else {
-    return '#00FF00'
+    return '#00FF00' // ERROR: big green
   }
 }
 
@@ -508,12 +525,12 @@ function get_selected_task_meta() {
 
 const selectedTaskName = computed(() => {
   let meta = get_selected_task_meta()
-  return meta ? meta['Name'] : 'No Task Selected'
+  return meta ? meta['name'] : 'No Task Selected'
 })
 
 const selectedTaskDetail = computed(() => {
   let meta = get_selected_task_meta()
-  return meta ? meta['Detail'] ?? 'No Detail Available' : 'No Detail Available'
+  return meta ? meta['detail'] ?? 'No Detail Available' : 'No Detail Available'
 })
 
 async function handleCytoscapeLayoutSelectChange() {
@@ -697,7 +714,42 @@ async function onRemoveDependency() {
   if (projectUUID.value) await readProject(projectUUID.value).then(() => initCytoscape())
 }
 
-async function onSnoozeTask() {}
+const snoozeTaskModalOpen = ref<boolean>(false)
+
+const showSnoozeTaskModal = () => {
+  snoozeTaskModalOpen.value = true
+}
+
+const handleSnoozeTaskModalOk = (e: MouseEvent) => {
+  snoozeTask()
+  snoozeTaskModalOpen.value = false
+}
+
+async function snoozeTask() {
+  if (projectInputState.selected_node && projectInputState.snooze_task_until) {
+    await callRESTfulAPI(
+      `projects/${projectUUID.value}`,
+      'POST',
+      JSON.stringify({
+        snooze_task: {
+          uuid: projectInputState.selected_node,
+          snooze_until: projectInputState.snooze_task_until.unix()
+        }
+      })
+    ).then((response) => {
+      if (response?.result == 'OK') {
+        message.warning('Snoozed task')
+      }
+    })
+  } else {
+    message.error(
+      'Please select a task and a date before the operation \
+      (click a task in the DAG View to select it)'
+    )
+  }
+  projectInputState.selected_node = null
+  if (projectUUID.value) await readProject(projectUUID.value).then(() => initCytoscape())
+}
 
 async function onChangeTaskStatus() {}
 

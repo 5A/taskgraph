@@ -10,9 +10,7 @@ __version__ = "20240301"
 
 # std libs
 import logging
-import os
-import json
-from typing import Annotated, Optional
+from typing import Annotated
 from json import JSONDecodeError
 from contextlib import asynccontextmanager
 # third party libs
@@ -20,100 +18,22 @@ from websockets.exceptions import ConnectionClosedOK
 from fastapi import Depends, FastAPI, HTTPException, status, WebSocket, WebSocketDisconnect, WebSocketException
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, ValidationError, Field
+from pydantic import ValidationError
 # local libraries
-from taskgraph import TaskGraph, TaskGraphData, TaskStatus
+from taskgraph import TaskGraph, TaskGraphData, TaskGraphProjectData, TaskStatus, TaskGraphMetadataItem
 # this package
 from .server_config import server_config, UserAccessLevel
 from .auth import try_authenticate, create_access_token, validate_access_token, check_access_level
 from .auth import Token, TokenData, AccessLevelException
 from .ws import WebSocketConnectionManager
 from .database import TaskGraphDatabaseManager
+from .data_models import (
+    ServerResourceNames,
+    NewProjectData, DeleteProjectData, ProjectOperationReport,
+    ModifyProjectData, ModifyProjectReport
+)
 
 lg = logging.getLogger(__name__)
-
-
-class ServerResourceNames(BaseModel):
-    resources: list[str]
-
-
-class NewProjectData(BaseModel):
-    name: Optional[str] = Field(
-        None, description="Name of the new project, if not specified, empty string will be used."
-    )
-
-
-class DeleteProjectData(BaseModel):
-    uuid: str
-
-
-class ProjectOperationReport(BaseModel):
-    id: str
-    name: str
-
-
-class NewSubTaskData(BaseModel):
-    parent: str
-    name: Optional[str] = Field(
-        None, description="Name of the new task, if not specified, the task will be created without a name"
-    )
-    detail: Optional[str] = Field(
-        None, description="Detail of the new task, if not specified, the task will be created without a detail"
-    )
-
-
-class NewSuperTaskData(BaseModel):
-    child: str
-    name: Optional[str] = Field(
-        None, description="Name of the new task, if not specified, the task will be created without a name"
-    )
-    detail: Optional[str] = Field(
-        None, description="Detail of the new task, if not specified, the task will be created without a detail"
-    )
-
-
-class UpdateTaskStatusData(BaseModel):
-    uuid: str
-    status: TaskStatus
-
-
-class RemoveTaskData(BaseModel):
-    uuid: str
-
-
-class AddDependenciesData(BaseModel):
-    uuid: str
-    dependencies: list[str]
-
-
-class RemoveDependencyData(BaseModel):
-    uuid_sub_task: str
-    uuid_super_task: str
-
-
-class ModifyProjectData(BaseModel):
-    add_sub_task: Optional[NewSubTaskData] = Field(
-        None, description=""
-    )
-    add_super_task: Optional[NewSuperTaskData] = Field(
-        None, description=""
-    )
-    update_task_status: Optional[UpdateTaskStatusData] = Field(
-        None, description=""
-    )
-    remove_task: Optional[RemoveTaskData] = Field(
-        None, description=""
-    )
-    add_dependencies: Optional[AddDependenciesData] = Field(
-        None, description=""
-    )
-    remove_dependency: Optional[RemoveDependencyData] = Field(
-        None, description=""
-    )
-
-
-class ModifyProjectReport(BaseModel):
-    result: str
 
 
 ws_mgr = WebSocketConnectionManager()
@@ -197,7 +117,7 @@ async def delete_project(project_data: DeleteProjectData,
     return ProjectOperationReport(id=project_id, name=project_name)
 
 
-@app.get("/projects/{project_uuid}")
+@app.get("/projects/{project_uuid}", response_model=TaskGraphProjectData, response_model_exclude_none=True)
 async def read_project(project_uuid: str, format: str | None = None):
     return tg.projects[project_uuid].get_data(dag_format=format)
 
@@ -207,22 +127,22 @@ async def modify_project(project_uuid: str, mod_data: ModifyProjectData):
     lg.info(mod_data)
     proj = tg.projects[project_uuid]
     if mod_data.add_sub_task is not None:
-        meta = dict()
+        meta = TaskGraphMetadataItem()
         if mod_data.add_sub_task.name is not None:
-            meta["Name"] = mod_data.add_sub_task.name
+            meta.name = mod_data.add_sub_task.name
         if mod_data.add_sub_task.detail is not None:
-            meta["Detail"] = mod_data.add_sub_task.detail
+            meta.detail = mod_data.add_sub_task.detail
         proj.add_sub_task(mod_data.add_sub_task.parent, meta=meta)
     if mod_data.add_super_task is not None:
-        meta = dict()
+        meta = TaskGraphMetadataItem()
         if mod_data.add_super_task.name is not None:
-            meta["Name"] = mod_data.add_super_task.name
+            meta.name = mod_data.add_super_task.name
         if mod_data.add_super_task.detail is not None:
-            meta["Detail"] = mod_data.add_super_task.detail
+            meta.detail = mod_data.add_super_task.detail
         proj.add_super_task(mod_data.add_super_task.child, meta=meta)
     if mod_data.update_task_status is not None:
         data = mod_data.update_task_status
-        if data.status.value == "Done":
+        if TaskStatus.done.value == data.status.value:
             proj.task_done(data.uuid)
     if mod_data.remove_task is not None:
         proj.remove_task(mod_data.remove_task.uuid)
@@ -234,6 +154,9 @@ async def modify_project(project_uuid: str, mod_data: ModifyProjectData):
             task_uuid=mod_data.remove_dependency.uuid_super_task,
             dep_uuid=mod_data.remove_dependency.uuid_sub_task
         )
+    if mod_data.snooze_task is not None:
+        proj.task_snooze(mod_data.snooze_task.uuid,
+                         mod_data.snooze_task.snooze_until)
     return ModifyProjectReport(result="OK")
 
 

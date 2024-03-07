@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { type RemovableRef, useStorage } from '@vueuse/core'
 import { computed, type UnwrapRef, reactive } from 'vue'
-
+import type { Dayjs } from 'dayjs'
 // =============== Project List ================
 // stores a list of projects, and metadata (status, name, etc.) for each project.
 // K-V storage is used, each project can be looked-up by its UUID.
@@ -52,6 +52,7 @@ export interface ProjectWorkspaceInputState {
   add_new_task_detail: string
   task_toolbox_location_select: string
   add_dependency_selected_nodes: Array<string>
+  snooze_task_until: Dayjs | null
 }
 
 // This store is for new project input
@@ -72,7 +73,8 @@ export const useProjectOperationInputStore = defineStore(
       add_new_task_name: '',
       add_new_task_detail: '',
       task_toolbox_location_select: 'sub',
-      add_dependency_selected_nodes: []
+      add_dependency_selected_nodes: [],
+      snooze_task_until: null
     })
     return {
       newProjectInputState,

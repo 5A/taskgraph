@@ -8,4 +8,8 @@ __author__ = "Zhi Zi"
 __email__ = "x@zzi.io"
 __version__ = "20240301"
 
-from .taskgraph import TaskGraph, TaskGraphProject, TaskGraphData, TaskGraphProjectData, TaskStatus
+from .taskgraph import (
+    TaskGraph, TaskGraphProject,
+    TaskGraphData, TaskGraphProjectData,
+    TaskStatus, TaskGraphMetadataItem
+)
