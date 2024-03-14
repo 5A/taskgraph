@@ -6,7 +6,7 @@
     sub-title="Overview"
   >
     <template #extra>
-      <a-button key="1" type="primary" @click="onSyncStatus">
+      <a-button key="1" type="primary">
         <SyncOutlined />
         Sync Status
       </a-button>
@@ -38,18 +38,6 @@ const { connStatusState } = storeToRefs(connStatusStore)
 
 const projectListStore = useProjectListStore()
 
-async function onSyncStatus() {
-  // retrive a list of projects by GET
-  await callRESTfulAPI('projects', 'GET', null).then((response) => {
-    if (response?.projects) {
-      // purge and reconstruct local buffer
-      projectListStore.projectListState.projects = {}
-      for (const item in response.projects) {
-        projectListStore.projectListState.projects[item] = response.projects[item]
-      }
-    }
-  })
-}
 
 </script>
 

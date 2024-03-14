@@ -20,7 +20,11 @@ from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
 # local libraries
-from taskgraph import TaskGraph, TaskGraphData, TaskGraphProjectData, TaskStatus, TaskGraphMetadataItem
+from taskgraph import (
+    TaskGraph, TaskGraphData,
+    TaskGraphProjectData, TaskStatus, TaskGraphMetadataItem,
+    TaskGraphScheduler, TaskGraphEvents, EventTaskWakeUp
+)
 # this package
 from .server_config import server_config, UserAccessLevel
 from .auth import try_authenticate, create_access_token, validate_access_token, check_access_level
@@ -38,18 +42,28 @@ lg = logging.getLogger(__name__)
 
 ws_mgr = WebSocketConnectionManager()
 tg = TaskGraph()
+tg_sch = TaskGraphScheduler(taskgraph=tg)
 db_mgr = TaskGraphDatabaseManager(
-    taskgraph=tg, database_config=server_config.database)
+    taskgraph=tg, scheduler=tg_sch,
+    database_config=server_config.database)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Before application start, load database
+    # Before application start, load database and scheduler
     lg.info("Loading data from database.")
     db_mgr.load_database()
+    lg.info("Loading events remaining from last session.")
+    db_mgr.load_scheduler_database()
+    lg.info("Starting up scheduler...")
+    tg_sch.start_scheduler()
     yield
     # Clean up resources and save database to file
-    lg.info("Saving data to database file ")
+    lg.info("Stopping scheduler...")
+    tg_sch.stop_scheduler()
+    lg.info("Saving remaining events to database file")
+    db_mgr.save_scheduler_database()
+    lg.info("Saving projects data to database file ")
     db_mgr.save_database()
 
 
@@ -157,6 +171,12 @@ async def modify_project(project_uuid: str, mod_data: ModifyProjectData):
     if mod_data.snooze_task is not None:
         proj.task_snooze(mod_data.snooze_task.uuid,
                          mod_data.snooze_task.snooze_until)
+        tg_sch.schedule(mod_data.snooze_task.snooze_until,
+                        TaskGraphEvents.wake_up.value,
+                        EventTaskWakeUp(
+                            project_uuid=project_uuid,
+                            task_uuid=mod_data.snooze_task.uuid
+                        ))
     return ModifyProjectReport(result="OK")
 
 

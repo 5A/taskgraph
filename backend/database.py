@@ -3,7 +3,7 @@ import os
 import logging
 import json
 # local packages
-from taskgraph import TaskGraph, TaskGraphData
+from taskgraph import TaskGraph, TaskGraphData, TaskGraphScheduler
 
 # this package
 from .server_config import DatabaseConfig
@@ -13,8 +13,10 @@ lg = logging.getLogger(__name__)
 
 
 class TaskGraphDatabaseManager():
-    def __init__(self, taskgraph: TaskGraph, database_config: DatabaseConfig) -> None:
+    def __init__(self, taskgraph: TaskGraph, scheduler: TaskGraphScheduler, 
+                 database_config: DatabaseConfig) -> None:
         self.tg = taskgraph
+        self.sch = scheduler
         self.cfg = database_config
 
     def load_projects(self, tg_data: TaskGraphData):
@@ -91,3 +93,25 @@ class TaskGraphDatabaseManager():
         else:
             lg.warning("Did not find project database file {} when deleting project".format(
                 project_db_path))
+
+    def save_scheduler_database(self):
+        scheduler_db_path = self.cfg.root_path + "scheduler.json"
+        if os.path.exists(scheduler_db_path):
+            lg.info("Overwriting scheduler database file.")
+        else:
+            lg.warning("Creating new scheduler database file at {}".format(
+                scheduler_db_path))
+        self.sch.serialize_to_file(scheduler_db_path)
+
+    def load_scheduler_database(self):
+        root_path = self.cfg.root_path
+        scheduler_db_path = root_path + "scheduler.json"
+        if os.path.exists(scheduler_db_path):
+            self.sch.load_from_file(scheduler_db_path)
+        else:
+            lg.warning("No scheduler database file found!")
+            lg.warning(
+                "If this is a new installation of TaskGraph, this warning can be safely ignored.")
+            lg.warning("Creating new scheduler database file at {}".format(
+                scheduler_db_path))
+            self.sch.serialize_to_file(scheduler_db_path)

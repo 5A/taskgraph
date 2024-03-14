@@ -11,5 +11,7 @@ __version__ = "20240301"
 from .taskgraph import (
     TaskGraph, TaskGraphProject,
     TaskGraphData, TaskGraphProjectData,
-    TaskStatus, TaskGraphMetadataItem
+    TaskStatus, TaskGraphMetadataItem,
+    TaskGraphScheduler, TaskGraphEvents,
+    EventTaskWakeUp,
 )

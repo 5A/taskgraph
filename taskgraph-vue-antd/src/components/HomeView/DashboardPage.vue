@@ -14,13 +14,13 @@
       minHeight: '280px',
     }"
   >
-    <ProjectsOverviewCard />
+    <AvailableTasksCard />
   </a-layout-content>
 </template>
 
 <script lang="ts" setup>
 import DashboardPageHeader from "./Dashboard/DashboardPageHeader.vue";
-import ProjectsOverviewCard from "./Dashboard/ProjectsOverviewCard.vue";
+import AvailableTasksCard from "./Dashboard/AvailableTasksCard.vue";
 </script>
 
 <style scoped></style>

@@ -11,12 +11,17 @@ __version__ = "20240301"
 # std libs
 import json
 import time
-from typing import Mapping, Optional
+import heapq
+import asyncio
+import logging
+from typing import Mapping, Optional, Tuple
 from enum import Enum
 # third party libs
 import uuid
 import networkx as nx
 from pydantic import BaseModel
+
+lg = logging.getLogger(__name__)
 
 
 class TaskStatus(Enum):
@@ -49,6 +54,7 @@ class TaskGraphProjectData(BaseModel):
     name: str
     DAG: Mapping
     metadata: dict[str, TaskGraphMetadataItem]
+
 
 class TaskGraphDataItem(BaseModel):
     name: str
@@ -93,12 +99,15 @@ class TaskGraphProject:
             # currently not snoozed
             return False
 
-    def __analyze_status(self, task_uuid: str):
+    def resolve_dependency(self, task_uuid: str):
         """
-        Analyzes status of a given task in the project DAG to resolve dependency / wake task
+        Analyzes status of a given task in the project DAG to resolve dependency
         """
-        # rule 1: if task is currently snoozed, it remains snoozed until WakeAfter is passed.
-        if self.__check_snoozed(task_uuid=task_uuid):
+        # rule 0: if a task is done, it is done forever unless it is revived
+        if TaskStatus.done.value == self.metadata[task_uuid].status:
+            return
+        # rule 1: if task is currently snoozed, it remains snoozed until time to wake up.
+        if self.__check_snoozed(task_uuid):
             return
         # rule 2: else: if the task is not snoozed, and if all predecessors of the task are done,
         #   then the task becomes active
@@ -166,7 +175,7 @@ class TaskGraphProject:
         dependency_uuid = self.dag.edges[dep_uuid, task_uuid]['id']
         self.metadata.pop(dependency_uuid)
         self.dag.remove_edge(dep_uuid, task_uuid)
-        self.__analyze_status(task_uuid=task_uuid)
+        self.resolve_dependency(task_uuid=task_uuid)
 
     def remove_task(self, task_uuid: str):
         """
@@ -179,7 +188,7 @@ class TaskGraphProject:
         self.metadata.pop(task_uuid)
         # resolve dependencies for super-tasks after the task is removed
         for node in super_tasks:
-            self.__analyze_status(task_uuid=node)
+            self.resolve_dependency(task_uuid=node)
 
     def task_done(self, task_uuid: str):
         """
@@ -187,7 +196,7 @@ class TaskGraphProject:
         """
         self.metadata[task_uuid].status = TaskStatus.done.value
         for node in self.dag.successors(task_uuid):
-            self.__analyze_status(node)
+            self.resolve_dependency(node)
 
     def task_snooze(self, task_uuid: str, snooze_until: float):
         """
@@ -272,3 +281,114 @@ class TaskGraph:
 
     def remove_project(self, project_id: str) -> TaskGraphProject:
         return self.projects.pop(project_id)
+
+
+class TaskGraphEvents(Enum):
+    wake_up = "wake_up"
+
+
+class EventTaskWakeUp(BaseModel):
+    project_uuid: str
+    task_uuid: str
+
+
+class TaskGraphSchedulerData(BaseModel):
+    event_heap: list[Tuple[float, str, str]]
+    event_map: dict[str, EventTaskWakeUp]
+
+
+class TaskGraphScheduler:
+    def __init__(self, taskgraph: TaskGraph) -> None:
+        """
+        Scheduler of all TaskGraph events, regardless of task or project.
+        event_heap: min heap used to sort events, stored as (timestamp, event_uuid, event_type)
+        event_map: key-value storage to store additional event data, as {event_uuid: EventData}
+        """
+        self.tg = taskgraph
+        self.event_heap: list[Tuple[float, str, str]] = []
+        self.event_map: dict[str, EventTaskWakeUp] = dict()
+        self.scheduler_running = False
+        self.eloop = asyncio.get_event_loop()
+
+    def start_scheduler(self):
+        self.scheduler_running = True
+        self.eloop.create_task(self.periodic_check())
+
+    def stop_scheduler(self):
+        self.scheduler_running = False
+
+    def get_data(self) -> TaskGraphSchedulerData:
+        data_obj = TaskGraphSchedulerData(
+            event_heap=self.event_heap,
+            event_map=self.event_map
+        )
+        return data_obj
+
+    def serialize(self) -> str:
+        data_obj = self.get_data()
+        return data_obj.model_dump_json(indent=2, exclude_none=True)
+
+    def serialize_to_file(self, file_path: str):
+        with open(file_path, 'wb') as f:
+            f.write(self.serialize().encode("utf-8"))
+
+    def load(self, data: TaskGraphSchedulerData):
+        self.event_heap = data.event_heap
+        self.event_map = data.event_map
+
+    def load_from_file(self, path: str):
+        with open(path, 'rb') as f:
+            r = f.read().decode("utf-8")
+            r = json.loads(r)
+        data = TaskGraphSchedulerData(**r)
+        return self.load(data)
+
+    def schedule(self, timestamp: float, event_type: str,
+                 event_data: EventTaskWakeUp):
+        event_uuid = uuid.uuid4().__str__()
+        heapq.heappush(self.event_heap, (timestamp, event_uuid, event_type))
+        self.event_map[event_uuid] = event_data
+
+    async def periodic_check(self):
+        """
+        Checks event heap constantly to trigger events.
+        NOTE that this function eventually calls methods that modifies data of TaskGraph,
+        be aware of data conflicts.
+        This is the asynchronous version, thus no mutex is needed.
+        """
+        while self.scheduler_running:
+            while (len(self.event_heap) > 0) and self.scheduler_running:
+                # process all time-up events in a loop
+                first_event = self.event_heap[0]
+                t_event = first_event[0]
+                if time.time() > t_event:
+                    # trig event and remove it from event heap / event map
+                    event_uuid = first_event[1]
+                    event_type = first_event[2]
+                    self.__process_event(
+                        event_uuid=event_uuid, event_type=event_type)
+                    heapq.heappop(self.event_heap)
+                    self.event_map.pop(event_uuid)
+                else:
+                    # no more time-up event, go to outer loop and wait for nexts
+                    break
+                # all data operation is done, hand out control for a short period of time
+                # to avoid blocking the main thread for too long in case of too many events.
+                await asyncio.sleep(0.1)
+            # all time-up events processed,
+            # release control and come back to check events every second
+            await asyncio.sleep(1)
+
+    def __process_event(self, event_uuid: str, event_type: str):
+        if TaskGraphEvents.wake_up.value == event_type:
+            event_data: EventTaskWakeUp = self.event_map[event_uuid]
+            project_uuid = event_data.project_uuid
+            task_uuid = event_data.task_uuid
+            target_project = self.tg.projects[project_uuid]
+            # check dependency to determine if it should be pending or active.
+            # resolve_dependency will check wake_after metadata attached to the
+            # task again to determine if it is really time to wake up, because
+            # the user may set another time to snooze until, and the previous
+            # event did not get removed. (Which means EventWakeUp only tries to
+            # wake up the task, but does not guarantee that the task get woke up)
+            target_project.resolve_dependency(task_uuid=task_uuid)
