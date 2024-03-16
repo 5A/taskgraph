@@ -20,17 +20,8 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, ref, watch } from 'vue'
-import { storeToRefs } from 'pinia'
-import { useRoute } from 'vue-router'
-import {
-  WarningTwoTone,
-  CheckCircleTwoTone,
-  CloseCircleTwoTone,
-  DeleteOutlined,
-  SyncOutlined
-} from '@ant-design/icons-vue'
-import { useProjectListStore, useTaskGraphDataStore } from '@/store/projects'
+import { SyncOutlined } from '@ant-design/icons-vue'
+import { useProjectListStore } from '@/store/projects'
 import { callRESTfulAPI } from '@/common/connection'
 
 const projectListStore = useProjectListStore()

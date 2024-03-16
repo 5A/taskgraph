@@ -720,7 +720,7 @@ const showSnoozeTaskModal = () => {
   snoozeTaskModalOpen.value = true
 }
 
-const handleSnoozeTaskModalOk = (e: MouseEvent) => {
+const handleSnoozeTaskModalOk = (_e: MouseEvent) => {
   snoozeTask()
   snoozeTaskModalOpen.value = false
 }

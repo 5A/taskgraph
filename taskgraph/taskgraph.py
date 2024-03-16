@@ -38,22 +38,40 @@ class TaskStatus(Enum):
     snoozed = "Snoozed"
 
 
-class TaskGraphMetadataItem(BaseModel):
+class IssueStatus(Enum):
     """
-    Stores any metadata attached to a given task(node) or dependency(edge)
+    Issues have multiple status:
+        Open: issue to be resolved
+        Closed: issue finished or cannot be finished anymore
     """
-    # Common for both task and dependency
+    open = "Open"
+    closed = "Closed"
+
+
+class TaskGraphIssue(BaseModel):
+    title: str
+    status: str
+    description: Optional[str] = None
+    labels: Optional[list[str]] = None
+    close_reason: Optional[str] = None
+
+
+class TaskGraphTaskMetadataItem(BaseModel):
+    """
+    Stores any metadata attached to a given task(node)
+    """
     name: Optional[str] = None
     detail: Optional[str] = None
-    # Task metadata
     status: Optional[str] = None
     wake_after: Optional[float] = None
+    remind_after: Optional[float] = None
+    issues: Optional[dict[str, TaskGraphIssue]] = None
 
 
 class TaskGraphProjectData(BaseModel):
     name: str
     DAG: Mapping
-    metadata: dict[str, TaskGraphMetadataItem]
+    metadata: dict[str, TaskGraphTaskMetadataItem]
 
 
 class TaskGraphDataItem(BaseModel):
@@ -72,12 +90,12 @@ class TaskGraphProject:
         else:
             self.name = ""
         self.dag = nx.DiGraph()
-        self.metadata: dict[str, TaskGraphMetadataItem] = dict()
+        self.metadata: dict[str, TaskGraphTaskMetadataItem] = dict()
         self.__add_root()
 
     def __add_root(self):
         self.task_root = uuid.uuid4().__str__()
-        self.metadata[self.task_root] = TaskGraphMetadataItem()
+        self.metadata[self.task_root] = TaskGraphTaskMetadataItem()
         self.metadata[self.task_root].name = "Finish"
         self.metadata[self.task_root].status = "Active"
         self.dag.add_node(self.task_root)
@@ -97,6 +115,18 @@ class TaskGraphProject:
                 return True
         else:
             # currently not snoozed
+            return False
+
+    def __check_reminder(self, task_uuid: str) -> bool:
+        meta = self.metadata[task_uuid]
+        if meta.remind_after is None:
+            raise ValueError(
+                "No remind_after is set for task {}".format(task_uuid)            )
+        elif time.time() > meta.remind_after:
+            # it is time to remind
+            return True
+        else:
+            # do not remind yet
             return False
 
     def resolve_dependency(self, task_uuid: str):
@@ -124,7 +154,7 @@ class TaskGraphProject:
         else:
             self.metadata[task_uuid].status = TaskStatus.pending.value
 
-    def add_sub_task(self, parent: str, meta: TaskGraphMetadataItem | None = None) -> str:
+    def add_sub_task(self, parent: str, meta: TaskGraphTaskMetadataItem | None = None) -> str:
         """
         Adds a sub-task for a given parent task, marks the new task as active and
         the parent task as pending.
@@ -134,7 +164,7 @@ class TaskGraphProject:
         if meta is not None:
             self.metadata[task_uuid] = meta
         else:
-            self.metadata[task_uuid] = TaskGraphMetadataItem()
+            self.metadata[task_uuid] = TaskGraphTaskMetadataItem()
         self.dag.add_node(task_uuid)
         # add dependency for the task, the parent task will depend on the new sub-task
         self.add_dependency(parent, dep=task_uuid)
@@ -142,7 +172,7 @@ class TaskGraphProject:
         self.metadata[task_uuid].status = TaskStatus.active.value
         return task_uuid
 
-    def add_super_task(self, child: str, meta: TaskGraphMetadataItem | None = None) -> str:
+    def add_super_task(self, child: str, meta: TaskGraphTaskMetadataItem | None = None) -> str:
         """
         Adds a super-task for a given child task, marks the new task as pending.
         """
@@ -151,7 +181,7 @@ class TaskGraphProject:
         if meta is not None:
             self.metadata[task_uuid] = meta
         else:
-            self.metadata[task_uuid] = TaskGraphMetadataItem()
+            self.metadata[task_uuid] = TaskGraphTaskMetadataItem()
         self.dag.add_node(task_uuid)
         # add dependency for the task, the new super-task will depend on the child task
         self.add_dependency(task_uuid, dep=child)
@@ -163,7 +193,8 @@ class TaskGraphProject:
         Marks the parent task as pending.
         """
         dependency_uuid = uuid.uuid4().__str__()
-        self.metadata[dependency_uuid] = TaskGraphMetadataItem()
+        # [TODO] add metadata to dependency
+        # self.dependency_metadata[dependency_uuid] = TaskGraphDependencyMetadataItem()
         self.dag.add_edge(dep, task_uuid, id=dependency_uuid)
         # mark status of task
         self.metadata[task_uuid].status = TaskStatus.pending.value
@@ -173,7 +204,8 @@ class TaskGraphProject:
         Removes dep_uuid from task_uuid's dependency
         """
         dependency_uuid = self.dag.edges[dep_uuid, task_uuid]['id']
-        self.metadata.pop(dependency_uuid)
+        # [TODO] remove dependency from dep meta
+        # self.dependency_metadata.pop(dependency_uuid)
         self.dag.remove_edge(dep_uuid, task_uuid)
         self.resolve_dependency(task_uuid=task_uuid)
 
@@ -208,6 +240,46 @@ class TaskGraphProject:
         self.metadata[task_uuid].status = TaskStatus.snoozed.value
         self.metadata[task_uuid].wake_after = snooze_until
 
+    def task_add_reminder(self, task_uuid:str, remind_after: float):
+        """
+        Adds a reminder to a task.
+        Once remind_after (timestamp) is passed, user defined action will be executed on task.
+        """
+        self.metadata[task_uuid].remind_after = remind_after
+
+    def task_open_issue(self, task_uuid: str, title: str, description: Optional[str] = None) -> str:
+        """
+        Adds an issue to a task, optionally provides a description, default to no label.
+        """
+        task_meta = self.metadata[task_uuid]
+        if task_meta.issues is None:
+            # create issues metadata item if it does not exist yet
+            task_meta.issues = dict()
+        issue_uuid = uuid.uuid4().__str__()
+        issue_data = TaskGraphIssue(
+            title=title, status=IssueStatus.open.value, description=description)
+        task_meta.issues[issue_uuid] = issue_data
+        return issue_uuid
+
+    def task_close_issue(self, task_uuid: str, issue_uuid: str, reason: Optional[str] = None):
+        """
+        Closes an issue, optionally provides a reason.
+        """
+        task_meta = self.metadata[task_uuid]
+        if task_meta.issues is None:
+            raise ValueError(
+                "No issues created for task {} yet!".format(task_uuid))
+        task_meta.issues[issue_uuid].status = IssueStatus.closed.value
+        task_meta.issues[issue_uuid].close_reason = reason
+
+    def get_tasks_by_status(self, status: TaskStatus = TaskStatus.active) -> dict[str, TaskGraphTaskMetadataItem]:
+        tasks = dict(
+            filter(
+                lambda item: item[1].status == status.value,
+                self.metadata.items()
+            ))
+        return tasks
+
     def get_data(self, dag_format: str | None = None) -> TaskGraphProjectData:
         if dag_format == "cytoscape":
             dag_data = nx.cytoscape_data(self.dag)
@@ -241,6 +313,16 @@ class TaskGraphProject:
         data = TaskGraphProjectData(**r)
         return self.load(data)
 
+    def purge_metadata(self):
+        """
+        Removes unused metadata items from .metadata, by looking at each task uuid
+        """
+        new_metadata: dict[str, TaskGraphTaskMetadataItem] = dict()
+        for item in self.dag.nodes:
+            if item in self.metadata:
+                new_metadata[item] = self.metadata[item]
+        self.metadata = new_metadata
+
 
 class TaskGraph:
     def __init__(self) -> None:
@@ -251,6 +333,16 @@ class TaskGraph:
         proj = TaskGraphProject(name=name)
         self.projects[proj_uuid] = proj
         return proj_uuid
+
+    def remove_project(self, project_id: str) -> TaskGraphProject:
+        return self.projects.pop(project_id)
+
+    def get_tasks_by_status(self, status: TaskStatus = TaskStatus.active):
+        tasks = dict()
+        for project_uuid in self.projects:
+            proj = self.projects[project_uuid]
+            tasks[project_uuid] = proj.get_tasks_by_status(status=status)
+        return tasks
 
     def get_data(self) -> TaskGraphData:
         data = {}
@@ -278,9 +370,6 @@ class TaskGraph:
             proj_uuid = uuid.uuid4().__str__()
         self.projects[proj_uuid] = proj
         return proj_uuid
-
-    def remove_project(self, project_id: str) -> TaskGraphProject:
-        return self.projects.pop(project_id)
 
 
 class TaskGraphEvents(Enum):

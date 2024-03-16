@@ -68,13 +68,8 @@ import {
   ExperimentOutlined,
   LinkOutlined,
   CodeOutlined,
-  BugOutlined,
-  StopOutlined
+  BugOutlined
 } from '@ant-design/icons-vue'
-
-import { useProjectListStore, useProjectOperationInputStore } from '@/store/projects'
-const projectListStore = useProjectListStore()
-
 
 const collapsed = ref<boolean>(false)
 const homeMenuSelectedKeys = ref<string[]>(['dashboard-item'])

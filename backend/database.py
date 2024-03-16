@@ -58,6 +58,8 @@ class TaskGraphDatabaseManager():
         project_db_path = self.cfg.root_path + \
             "projects/{}.json".format(project_id)
         project = self.tg.projects[project_id]
+        lg.info("Purging project metadata for {} before saving".format(project_id))
+        project.purge_metadata()
         if os.path.exists(project_db_path):
             lg.info("Overwriting project database file at {}".format(
                 project_db_path))

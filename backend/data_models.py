@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 # this project
 from taskgraph import TaskStatus
 
+
 class ServerResourceNames(BaseModel):
     resources: list[str]
 
@@ -68,6 +69,17 @@ class SnoozeTaskData(BaseModel):
     snooze_until: float
 
 
+class OpenIssueData(BaseModel):
+    task_uuid: str
+    title: str
+    description: Optional[str] = None
+
+
+class CloseIssueData(BaseModel):
+    task_uuid: str
+    issue_uuid: str
+    reason: Optional[str] = None
+
 class ModifyProjectData(BaseModel):
     add_sub_task: Optional[NewSubTaskData] = Field(
         None, description=""
@@ -90,6 +102,17 @@ class ModifyProjectData(BaseModel):
     snooze_task: Optional[SnoozeTaskData] = Field(
         None, description=""
     )
+    open_issue: Optional[OpenIssueData] = Field(
+        None, description=""
+    )
+    close_issue: Optional[CloseIssueData] = Field(
+        None, description=""
+    )
+
 
 class ModifyProjectReport(BaseModel):
     result: str
+
+
+class TasksLookupReport(BaseModel):
+    result: dict

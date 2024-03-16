@@ -53,7 +53,6 @@ import { ref } from "vue";
 import {
   ToolOutlined,
   UnlockOutlined,
-  BuildOutlined,
   LinkOutlined,
   StopOutlined,
 } from "@ant-design/icons-vue";

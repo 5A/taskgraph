@@ -22,7 +22,7 @@ from pydantic import ValidationError
 # local libraries
 from taskgraph import (
     TaskGraph, TaskGraphData,
-    TaskGraphProjectData, TaskStatus, TaskGraphMetadataItem,
+    TaskGraphProjectData, TaskStatus, TaskGraphTaskMetadataItem,
     TaskGraphScheduler, TaskGraphEvents, EventTaskWakeUp
 )
 # this package
@@ -34,7 +34,8 @@ from .database import TaskGraphDatabaseManager
 from .data_models import (
     ServerResourceNames,
     NewProjectData, DeleteProjectData, ProjectOperationReport,
-    ModifyProjectData, ModifyProjectReport
+    ModifyProjectData, ModifyProjectReport,
+    TasksLookupReport
 )
 
 lg = logging.getLogger(__name__)
@@ -132,23 +133,27 @@ async def delete_project(project_data: DeleteProjectData,
 
 
 @app.get("/projects/{project_uuid}", response_model=TaskGraphProjectData, response_model_exclude_none=True)
-async def read_project(project_uuid: str, format: str | None = None):
+async def read_project(project_uuid: str,
+                       token_data: Annotated[TokenData, Depends(validate_access_token)],
+                       format: str | None = None):
+    check_access_level(token_data.access_level, UserAccessLevel.readonly)
     return tg.projects[project_uuid].get_data(dag_format=format)
 
 
 @app.post("/projects/{project_uuid}")
-async def modify_project(project_uuid: str, mod_data: ModifyProjectData):
-    lg.info(mod_data)
+async def modify_project(project_uuid: str, mod_data: ModifyProjectData,
+                         token_data: Annotated[TokenData, Depends(validate_access_token)]):
+    check_access_level(token_data.access_level, UserAccessLevel.standard)
     proj = tg.projects[project_uuid]
     if mod_data.add_sub_task is not None:
-        meta = TaskGraphMetadataItem()
+        meta = TaskGraphTaskMetadataItem()
         if mod_data.add_sub_task.name is not None:
             meta.name = mod_data.add_sub_task.name
         if mod_data.add_sub_task.detail is not None:
             meta.detail = mod_data.add_sub_task.detail
         proj.add_sub_task(mod_data.add_sub_task.parent, meta=meta)
     if mod_data.add_super_task is not None:
-        meta = TaskGraphMetadataItem()
+        meta = TaskGraphTaskMetadataItem()
         if mod_data.add_super_task.name is not None:
             meta.name = mod_data.add_super_task.name
         if mod_data.add_super_task.detail is not None:
@@ -177,7 +182,25 @@ async def modify_project(project_uuid: str, mod_data: ModifyProjectData):
                             project_uuid=project_uuid,
                             task_uuid=mod_data.snooze_task.uuid
                         ))
+    if mod_data.open_issue is not None:
+        proj.task_open_issue(task_uuid=mod_data.open_issue.task_uuid,
+                             title=mod_data.open_issue.title,
+                             description=mod_data.open_issue.description)
+    if mod_data.close_issue is not None:
+        proj.task_close_issue(task_uuid=mod_data.close_issue.task_uuid,
+                              issue_uuid=mod_data.close_issue.issue_uuid,
+                              reason=mod_data.close_issue.reason)
+
     return ModifyProjectReport(result="OK")
+
+
+@app.get("/tasks/{status}", response_model_exclude_none=True)
+async def get_tasks_list_by_status(
+        status: TaskStatus,
+        token_data: Annotated[TokenData, Depends(validate_access_token)]) -> TasksLookupReport:
+    check_access_level(token_data.access_level, UserAccessLevel.readonly)
+    result = tg.get_tasks_by_status(status=status)
+    return TasksLookupReport(result=result)
 
 
 @app.websocket("/ws")

@@ -29,6 +29,31 @@ export const useProjectListStore = defineStore('taskgraph-project-list', () => {
   }
 })
 
+// =============== Dashboard Display ================
+// stores a list of tasks looked up by status.
+// K-V storage is used, each task and project can be looked-up by its UUID.
+
+export interface TaskItem {
+  name: string
+  detail: string | null
+}
+
+export interface TaskListState {
+  projects: Record<string, Record<string, TaskItem>>
+}
+
+// This stores a list of tasks filtered by different conditions
+export const useTaskListStore = defineStore('taskgraph-task-list', () => {
+  const activeTaskListState: RemovableRef<TaskListState> = useStorage(
+    'taskgraph-active-task-list-local-storage',
+    { projects: {} }
+  )
+
+  return {
+    activeTaskListState
+  }
+})
+
 // ============ Project Operation =================
 // These stores store the states of the input widgets
 // for managing projects and working on projects,
@@ -55,7 +80,7 @@ export interface ProjectWorkspaceInputState {
   snooze_task_until: Dayjs | null
 }
 
-// This store is for new project input
+// This store is for project operation inputs
 export const useProjectOperationInputStore = defineStore(
   'taskgraph-project-operation-input',
   () => {
