@@ -45,6 +45,16 @@ class NewSuperTaskData(BaseModel):
     )
 
 
+class ModifyTaskData(BaseModel):
+    uuid: str
+    name: Optional[str] = Field(
+        None, description="New name of the task. If not specified, no change to name is made"
+    )
+    detail: Optional[str] = Field(
+        None, description="New detail of the task. If not specified, no change to detail is made"
+    )
+
+
 class UpdateTaskStatusData(BaseModel):
     uuid: str
     status: TaskStatus
@@ -80,11 +90,15 @@ class CloseIssueData(BaseModel):
     issue_uuid: str
     reason: Optional[str] = None
 
+
 class ModifyProjectData(BaseModel):
     add_sub_task: Optional[NewSubTaskData] = Field(
         None, description=""
     )
     add_super_task: Optional[NewSuperTaskData] = Field(
+        None, description=""
+    )
+    modify_task: Optional[ModifyTaskData] = Field(
         None, description=""
     )
     update_task_status: Optional[UpdateTaskStatusData] = Field(

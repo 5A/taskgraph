@@ -546,6 +546,12 @@ async function onAddOrModifyTask() {
     await onAddSubTask()
   } else if (projectInputState.task_toolbox_location_select === 'super') {
     await onAddSuperTask()
+  } else if (projectInputState.task_toolbox_location_select == 'self') {
+    await onModifyTask()
+  } else {
+    console.log(
+      `Unexpected task_toolbox_location_select value: ${projectInputState.task_toolbox_location_select}`
+    )
   }
 }
 
@@ -595,6 +601,32 @@ async function onAddSuperTask() {
   } else {
     message.error(
       'Please select a child task for the new task before adding \
+      (click a task in the DAG View to select it)'
+    )
+  }
+  if (projectUUID.value) await readProject(projectUUID.value).then(() => initCytoscape())
+}
+
+async function onModifyTask() {
+  if (projectInputState.selected_node) {
+    await callRESTfulAPI(
+      `projects/${projectUUID.value}`,
+      'POST',
+      JSON.stringify({
+        modify_task: {
+          uuid: projectInputState.selected_node,
+          name: projectInputState.add_new_task_name,
+          detail: projectInputState.add_new_task_detail
+        }
+      })
+    ).then((response) => {
+      if (response?.result == 'OK') {
+        message.info('Task modified')
+      }
+    })
+  } else {
+    message.error(
+      'Please select a task before editing \
       (click a task in the DAG View to select it)'
     )
   }

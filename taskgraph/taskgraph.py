@@ -24,6 +24,18 @@ from pydantic import BaseModel
 lg = logging.getLogger(__name__)
 
 
+class ProjectStatus(Enum):
+    """
+    Projects have multiple status:
+        Done: marks that the project has been finished
+        Active: the project still has tasks active
+        Snoozed: the project has tasks not done, but all available tasks are snoozed
+    """
+    done = "Done"
+    active = "Active"
+    snoozed = "Snoozed"
+
+
 class TaskStatus(Enum):
     """
     Tasks have multiple status:
@@ -68,6 +80,14 @@ class TaskGraphTaskMetadataItem(BaseModel):
     issues: Optional[dict[str, TaskGraphIssue]] = None
 
 
+class ProjectStatisticsData(BaseModel):
+    active: int = 0
+    snoozed: int = 0
+    pending: int = 0
+    done: int = 0
+    unknown: int = 0
+
+
 class TaskGraphProjectData(BaseModel):
     name: str
     DAG: Mapping
@@ -76,6 +96,7 @@ class TaskGraphProjectData(BaseModel):
 
 class TaskGraphDataItem(BaseModel):
     name: str
+    status: Optional[str] = None
 
 
 class TaskGraphData(BaseModel):
@@ -91,6 +112,7 @@ class TaskGraphProject:
             self.name = ""
         self.dag = nx.DiGraph()
         self.metadata: dict[str, TaskGraphTaskMetadataItem] = dict()
+        self.statistics: ProjectStatisticsData = ProjectStatisticsData()
         self.__add_root()
 
     def __add_root(self):
@@ -121,13 +143,30 @@ class TaskGraphProject:
         meta = self.metadata[task_uuid]
         if meta.remind_after is None:
             raise ValueError(
-                "No remind_after is set for task {}".format(task_uuid)            )
+                "No remind_after is set for task {}".format(task_uuid))
         elif time.time() > meta.remind_after:
             # it is time to remind
             return True
         else:
             # do not remind yet
             return False
+
+    def update_statistics(self):
+        statistics = ProjectStatisticsData()
+        for k, v in self.metadata.items():
+            if v.status is None:
+                statistics.unknown += 1
+            elif TaskStatus.done.value == v.status:
+                statistics.done += 1
+            elif TaskStatus.active.value == v.status:
+                statistics.active += 1
+            elif TaskStatus.pending.value == v.status:
+                statistics.pending += 1
+            elif TaskStatus.snoozed.value == v.status:
+                statistics.snoozed += 1
+            else:
+                statistics.unknown += 1
+        self.statistics = statistics
 
     def resolve_dependency(self, task_uuid: str):
         """
@@ -240,7 +279,7 @@ class TaskGraphProject:
         self.metadata[task_uuid].status = TaskStatus.snoozed.value
         self.metadata[task_uuid].wake_after = snooze_until
 
-    def task_add_reminder(self, task_uuid:str, remind_after: float):
+    def task_add_reminder(self, task_uuid: str, remind_after: float):
         """
         Adds a reminder to a task.
         Once remind_after (timestamp) is passed, user defined action will be executed on task.
@@ -347,8 +386,21 @@ class TaskGraph:
     def get_data(self) -> TaskGraphData:
         data = {}
         for project_id in self.projects:
+            proj = self.projects[project_id]
+            proj.update_statistics()
+            status = ProjectStatus.done.value
+            if proj.statistics.active > 0:
+                # active task present, project is active
+                status = ProjectStatus.active.value
+            elif proj.statistics.snoozed > 0:
+                # no active task, but at least 1 task is snoozed
+                status = ProjectStatus.snoozed.value
+            else:
+                # no active or snoozed, project finished.
+                pass
             data_obj = TaskGraphDataItem(
-                name=self.projects[project_id].name
+                name=proj.name,
+                status=status
             )
             data[project_id] = data_obj
         return TaskGraphData(projects=data)

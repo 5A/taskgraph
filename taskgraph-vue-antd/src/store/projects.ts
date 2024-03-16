@@ -8,6 +8,7 @@ import type { Dayjs } from 'dayjs'
 
 export interface ProjectListItem {
   name: string
+  status: string | null
 }
 
 export interface ProjectListState {

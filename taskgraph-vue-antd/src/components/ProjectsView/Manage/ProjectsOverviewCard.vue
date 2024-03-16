@@ -19,6 +19,24 @@
         :key="uuid"
         :header="item.name"
       >
+        <template #extra>
+          <a-tag
+            v-if="projectListStore.projectListState.projects[uuid].status == 'Active'"
+            color="blue"
+          >
+            Active
+          </a-tag>
+          <a-tag
+            v-else-if="projectListStore.projectListState.projects[uuid].status == 'Snoozed'"
+            color="green"
+          >
+            Snoozed
+          </a-tag>
+          <a-tag v-else-if="projectListStore.projectListState.projects[uuid].status == 'Done'">
+            Done
+          </a-tag>
+          <a-tag v-else color="red"> Unknown Status </a-tag>
+        </template>
         <p>Project Name: {{ item.name }}</p>
         <p>Project ID: {{ uuid }}</p>
       </a-collapse-panel>
@@ -58,7 +76,7 @@ async function createNewProject() {
     })
   )
   if (result?.id) {
-    projectListStore.projectListState.projects[result.id] = { name: result.name }
+    projectListStore.projectListState.projects[result.id] = { name: result.name, status: 'Active' }
   } else {
     ant_message.warning('Error calling RESTful API, see console for more info.')
   }

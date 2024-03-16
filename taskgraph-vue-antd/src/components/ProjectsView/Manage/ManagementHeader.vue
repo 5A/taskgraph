@@ -28,7 +28,7 @@ const projectListStore = useProjectListStore()
 
 async function onSyncStatus() {
   // retrive a list of projects by GET
-  await callRESTfulAPI('projects', 'GET', null).then((response) => {
+  await callRESTfulAPI('projects', 'GET').then((response) => {
     if (response?.projects) {
       // purge and reconstruct local buffer
       projectListStore.projectListState.projects = {}
