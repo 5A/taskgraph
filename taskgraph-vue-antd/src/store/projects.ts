@@ -124,10 +124,28 @@ export interface TaskGraphDAG {
   links: Array<{ id: string; source: string; target: string }>
 }
 
+export interface TaskGraphIssue {
+  title: string
+  status: string
+  description: string | null
+  labels: Array<string> | null
+  close_reason: string | null
+}
+
+export interface TaskGraphTaskMetadataItem {
+  // Stores any metadata attached to a given task(node)
+  name: string | null
+  detail: string | null
+  status: string | null
+  wake_after: number | null
+  remind_after: number | null
+  issues: Record<string, TaskGraphIssue> | null
+}
+
 export interface TaskGraphProjectData {
   name: string
   DAG: TaskGraphDAG
-  metadata: Record<string, Record<string, string>>
+  metadata: Record<string, TaskGraphTaskMetadataItem>
 }
 
 export interface TaskGraphData {

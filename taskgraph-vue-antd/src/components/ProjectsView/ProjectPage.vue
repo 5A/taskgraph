@@ -109,6 +109,10 @@
           </a-button>
         </a-flex>
       </template>
+      <template v-if="selectedTaskStatus == 'Snoozed'">
+        <a-alert :message="`Snoozed until: ${selectedTaskSnoozeUntilFormatted}`" type="success" />
+        <br />
+      </template>
       <p style="white-space: pre-wrap">{{ selectedTaskDetail }}</p>
     </a-card>
   </a-layout-content>
@@ -158,7 +162,7 @@
 
 <script lang="ts" setup>
 // Vue and vue ecosystem
-import { computed, ref, watch, onMounted, toRaw } from 'vue'
+import { computed, ref, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 // Theme
 import { message } from 'ant-design-vue'
@@ -270,7 +274,7 @@ onMounted(() => {
 
 watch(
   () => route.params.project_uuid,
-  (newId, oldId) => {
+  (newId, _oldId) => {
     if (typeof newId === 'string') {
       projectUUID.value = newId
       readProject(projectUUID.value).then(() => initCytoscape())
@@ -288,7 +292,7 @@ const showDeleteProjectModal = () => {
   deleteProjectModalOpen.value = true
 }
 
-const handleDeleteProjectModalOk = (e: MouseEvent) => {
+const handleDeleteProjectModalOk = (_e: MouseEvent) => {
   deleteProject()
   deleteProjectModalOpen.value = false
 }
@@ -358,13 +362,15 @@ function construct_cytoscape_data(tgdata: TaskGraphProjectData | null) {
   let edges = []
   if (tgdata) {
     for (const item of tgdata.DAG.nodes) {
-      let data: Record<string, string> = { id: item.id }
+      let data: Record<string, string | number> = { id: item.id }
       if (item.id in tgdata.metadata) {
-        if ('name' in tgdata.metadata[item.id]) {
-          data['name'] = tgdata.metadata[item.id]['name']
+        // task exists
+        const task = tgdata.metadata[item.id]
+        if (task.name) {
+          data['name'] = task.name
         }
-        if ('status' in tgdata.metadata[item.id]) {
-          data['status'] = tgdata.metadata[item.id]['status']
+        if (task.status) {
+          data['status'] = task.status
         }
       }
       nodes.push({
@@ -531,6 +537,23 @@ const selectedTaskName = computed(() => {
 const selectedTaskDetail = computed(() => {
   let meta = get_selected_task_meta()
   return meta ? meta['detail'] ?? 'No Detail Available' : 'No Detail Available'
+})
+
+const selectedTaskStatus = computed(() => {
+  let meta = get_selected_task_meta()
+  return meta ? meta['status'] : null
+})
+
+const selectedTaskSnoozeUntilFormatted = computed(() => {
+  let meta = get_selected_task_meta()
+  if (meta === null) {
+    return null
+  } else if (meta.wake_after) {
+    const date_snooze = new Date(meta.wake_after * 1000)
+    return date_snooze.toString()
+  } else {
+    return null
+  }
 })
 
 async function handleCytoscapeLayoutSelectChange() {
