@@ -58,14 +58,21 @@ async def lifespan(app: FastAPI):
     db_mgr.load_scheduler_database()
     lg.info("Starting up scheduler...")
     tg_sch.start_scheduler()
+    lg.info("Starting up database manager...")
+    db_mgr.start_scheduler()
     yield
     # Clean up resources and save database to file
+    lg.info("Stopping database manager...")
+    db_mgr.stop_scheduler()
     lg.info("Stopping scheduler...")
     tg_sch.stop_scheduler()
     lg.info("Saving remaining events to database file")
     db_mgr.save_scheduler_database()
     lg.info("Saving projects data to database file ")
-    db_mgr.save_database()
+    # Explicitly set check_hash to False to force overwriting files at exit.
+    # This is nonsense if everything goes right, but if something went wrong 
+    # this should be able to keep some data consistency at least.
+    db_mgr.save_database(check_hash=False)
 
 
 app = FastAPI(lifespan=lifespan)

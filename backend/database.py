@@ -2,6 +2,8 @@
 import os
 import logging
 import json
+import asyncio
+import time
 # local packages
 from taskgraph import TaskGraph, TaskGraphData, TaskGraphScheduler
 
@@ -13,21 +15,55 @@ lg = logging.getLogger(__name__)
 
 
 class TaskGraphDatabaseManager():
-    def __init__(self, taskgraph: TaskGraph, scheduler: TaskGraphScheduler, 
+    def __init__(self, taskgraph: TaskGraph, scheduler: TaskGraphScheduler,
                  database_config: DatabaseConfig) -> None:
         self.tg = taskgraph
         self.sch = scheduler
         self.cfg = database_config
+        # this hash information is used to compare if the project data on disk is
+        # the same as the one in memory, to see if it has been changed.
+        self.project_hashes: dict[str, str] = dict()
+        self.manager_running = False
+        self.eloop = asyncio.get_event_loop()
+
+    def start_scheduler(self):
+        self.manager_running = True
+        self.eloop.create_task(self.periodic_check())
+
+    def stop_scheduler(self):
+        self.manager_running = False
+
+    async def periodic_check(self):
+        """
+        Checks local file changes, load changes into memory, and save database periodically.
+        NOTE that this function eventually calls methods that modifies data of TaskGraph
+        and data on the disk, be aware of data conflicts and data corruption.
+        This is the asynchronous version, thus no mutex is needed.
+        """
+        t_next_autosave = time.time() + 3600
+        while self.manager_running:
+            # [TODO]: check local files for auto loading
+            # ...
+            if time.time() > t_next_autosave:
+                # Save database files every hour (set check_hash=True to save changes only)
+                self.save_database(check_hash=True)
+                t_next_autosave = t_next_autosave + 3600
+            # release control and come back to check every second
+            await asyncio.sleep(1)
 
     def load_projects(self, tg_data: TaskGraphData):
         projects_loaded: int = 0
         for project_id in tg_data.projects:
             project_name = tg_data.projects[project_id].name
-            lg.info("Loading project: {} ({})".format(project_name, project_id))
+            lg.info("Loading project: {} ({})".format(
+                project_name, project_id))
             project_db_path = self.cfg.root_path + \
                 "projects/{}.json".format(project_id)
             if os.path.exists(project_db_path):
                 self.tg.load_project_from_file(project_db_path, project_id)
+                # if loaded successful, save its hash for later use
+                project = self.tg.projects[project_id]
+                self.project_hashes[project_id] = project.get_data_hash()
                 projects_loaded += 1
             else:
                 lg.error(
@@ -54,12 +90,17 @@ class TaskGraphDatabaseManager():
                 projects_db_path))
             self.tg.serialize_to_file(projects_db_path)
 
-    def save_project(self, project_id: str):
-        project_db_path = self.cfg.root_path + \
-            "projects/{}.json".format(project_id)
+    def save_project(self, project_id: str, check_hash: bool = False):
         project = self.tg.projects[project_id]
+        if check_hash and (project_id in self.project_hashes):
+            if project.get_data_hash() == self.project_hashes[project_id]:
+                lg.debug("Project database file for {} not changed because the project has not been modified.".format(
+                    project_id))
+                return
         lg.info("Purging project metadata for {} before saving".format(project_id))
         project.purge_metadata()
+        project_db_path = self.cfg.root_path + \
+            "projects/{}.json".format(project_id)
         if os.path.exists(project_db_path):
             lg.info("Overwriting project database file at {}".format(
                 project_db_path))
@@ -67,19 +108,21 @@ class TaskGraphDatabaseManager():
             lg.warning("Creating new project database file at {}".format(
                 project_db_path))
         project.serialize_to_file(project_db_path)
+        # if saved successfully, save its hash
+        self.project_hashes[project_id] = project.get_data_hash()
 
-    def save_projects(self):
+    def save_projects(self, check_hash: bool = False):
         for project_id in self.tg.projects:
-            self.save_project(project_id=project_id)
+            self.save_project(project_id=project_id, check_hash=check_hash)
 
-    def save_database(self):
+    def save_database(self, check_hash: bool = False):
         projects_db_path = self.cfg.root_path + "projects.json"
         if os.path.exists(projects_db_path):
             lg.info("Overwriting projects database file.")
         else:
             lg.warning("Creating new database file at {}".format(
                 projects_db_path))
-        self.save_projects()
+        self.save_projects(check_hash=check_hash)
         self.tg.serialize_to_file(projects_db_path)
 
     def delete_project(self, project_id: str):

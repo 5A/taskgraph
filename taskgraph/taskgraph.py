@@ -14,6 +14,7 @@ import time
 import heapq
 import asyncio
 import logging
+import hashlib
 from typing import Mapping, Optional, Tuple
 from enum import Enum
 # third party libs
@@ -371,6 +372,15 @@ class TaskGraphProject:
             if item in self.metadata:
                 new_metadata[item] = self.metadata[item]
         self.metadata = new_metadata
+
+    def get_data_hash(self):
+        """
+        Calculates a hash from current project data, if the hashes match, then the projects
+        should be identical.
+        This method provides a way to compare TaskGraphProject's, which is handy for detecting
+        data changes or handling data migration.
+        """
+        return hashlib.sha256(self.serialize().encode('utf-8')).hexdigest()
 
 
 class TaskGraph:
