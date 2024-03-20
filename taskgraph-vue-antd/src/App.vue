@@ -20,13 +20,13 @@
       >
         <a-menu-item key="home_tab">
           <a-space>
-            <ControlOutlined />
+            <HomeOutlined />
             <router-link to="/">TaskGraph</router-link>
           </a-space>
         </a-menu-item>
         <a-menu-item key="projects_tab">
           <a-space>
-            <ControlOutlined />
+            <BarsOutlined />
             <router-link to="/projects">Projects</router-link>
           </a-space>
         </a-menu-item>
@@ -51,7 +51,8 @@
 <script lang="ts" setup>
 import { ref } from "vue";
 import {
-  ControlOutlined,
+  HomeOutlined,
+  BarsOutlined,
   QuestionCircleOutlined,
   ExclamationCircleOutlined,
 } from "@ant-design/icons-vue";

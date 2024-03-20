@@ -14,21 +14,21 @@
         :style="{ height: '100%', borderRight: 0 }"
       >
         <a-menu-item key="projects-manage">
-          <ProjectOutlined />
+          <AppstoreAddOutlined />
           <span>
-            <router-link to="/projects/manage"> Manage </router-link>
+            <router-link to="/projects/manage">Manage</router-link>
           </span>
         </a-menu-item>
         <a-sub-menu key="projects-unfinished">
           <template #title>
-            <CodeOutlined />
+            <ProjectOutlined />
             <span>Projects</span>
           </template>
           <a-menu-item
             v-for="(item, uuid) in projectListStore.projectListState.projects"
             :key="uuid"
           >
-            <ProjectOutlined />
+            <ExperimentOutlined />
             <span>
               <router-link :to="{ name: 'project_id', params: { project_uuid: uuid } }">
                 {{ item.name }}
@@ -49,12 +49,12 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { ProjectOutlined, CodeOutlined } from '@ant-design/icons-vue'
+import { ProjectOutlined, ExperimentOutlined, AppstoreAddOutlined } from '@ant-design/icons-vue'
 
 import { useProjectListStore } from '@/store/projects'
 const projectListStore = useProjectListStore()
 
 const collapsed = ref<boolean>(false)
-const projectsMenuSelectedKeys = ref<string[]>(["projects-manage"])
+const projectsMenuSelectedKeys = ref<string[]>(['projects-manage'])
 const projectsMenuOpenKeys = ref<string[]>(['projects-unfinished'])
 </script>

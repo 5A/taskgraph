@@ -902,20 +902,20 @@ const handleNewIssueModalOk = (_e: MouseEvent) => {
 }
 
 const issue_data_source = computed(() => {
-  if (selectedTaskMeta.value && selectedTaskMeta.value.issues) {
+  if (selectedTaskIssues.value) {
     let dataSourceOpen = []
     let dataSourceClosed = []
-    for (const item in selectedTaskMeta.value.issues) {
-      if ('Open' == selectedTaskMeta.value.issues[item].status) {
+    for (const item in selectedTaskIssues.value) {
+      if ('Open' == selectedTaskIssues.value[item].status) {
         dataSourceOpen.push({
-          title: selectedTaskMeta.value.issues[item].title,
-          description: selectedTaskMeta.value.issues[item].description,
+          title: selectedTaskIssues.value[item].title,
+          description: selectedTaskIssues.value[item].description,
           key: item
         })
       } else {
         dataSourceClosed.push({
-          title: selectedTaskMeta.value.issues[item].title,
-          description: selectedTaskMeta.value.issues[item].description,
+          title: selectedTaskIssues.value[item].title,
+          description: selectedTaskIssues.value[item].description,
           key: item
         })
       }

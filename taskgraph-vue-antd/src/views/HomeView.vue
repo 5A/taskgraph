@@ -15,11 +15,11 @@
       >
         <a-sub-menu key="taskgraph-control">
           <template #title>
-            <ExperimentOutlined />
+            <ControlOutlined />
             <span>Workbench</span>
           </template>
           <a-menu-item key="dashboard-item">
-            <ToolOutlined />
+            <DashboardOutlined />
             <span>
               <router-link to="dashboard">Dashboard</router-link>
             </span>
@@ -37,7 +37,7 @@
             </span>
           </a-menu-item>
           <a-menu-item key="messages-item">
-            <BugOutlined />
+            <MessageOutlined />
             <span>
               <router-link to="messages">Messages</router-link>
             </span>
@@ -63,12 +63,12 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import {
-  ToolOutlined,
+  ControlOutlined,
   UnlockOutlined,
-  ExperimentOutlined,
+  DashboardOutlined,
   LinkOutlined,
   CodeOutlined,
-  BugOutlined
+  MessageOutlined
 } from '@ant-design/icons-vue'
 
 const collapsed = ref<boolean>(false)
