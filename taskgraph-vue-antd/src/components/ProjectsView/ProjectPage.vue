@@ -963,7 +963,10 @@ async function onOpenNewIssue() {
       })
     ).then((response) => {
       if (response?.result == 'OK') {
+        // issue open successful, notify the user and clear input
         message.warning('Issue opened')
+        projectInputState.new_issue_title = ''
+        projectInputState.new_issue_description = ''
       }
     })
   } else {
