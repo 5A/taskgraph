@@ -91,6 +91,11 @@ class CloseIssueData(BaseModel):
     reason: Optional[str] = None
 
 
+class DeleteIssueData(BaseModel):
+    task_uuid: str
+    issue_uuid: str
+
+
 class ModifyProjectData(BaseModel):
     add_sub_task: Optional[NewSubTaskData] = Field(
         None, description=""
@@ -120,6 +125,9 @@ class ModifyProjectData(BaseModel):
         None, description=""
     )
     close_issue: Optional[CloseIssueData] = Field(
+        None, description=""
+    )
+    delete_issue: Optional[DeleteIssueData] = Field(
         None, description=""
     )
 

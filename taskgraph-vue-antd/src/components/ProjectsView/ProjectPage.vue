@@ -115,6 +115,82 @@
       </template>
       <p style="white-space: pre-wrap">{{ selectedTaskDetail }}</p>
     </a-card>
+    <br />
+    <a-card title="Issues" style="width: 100%">
+      <template #extra>
+        <a-flex gap="small">
+          <a-button key="1" type="primary" @click="showNewIssueModal">
+            <PlusCircleOutlined />
+            Open New Issue
+          </a-button>
+          <a-modal
+            v-model:open="newIssueModalOpen"
+            :title="`New Issue: ${selectedTaskName}`"
+            @ok="handleNewIssueModalOk"
+          >
+            <a-flex gap="small" vertical>
+              <a-input
+                v-model:value="projectInputState.new_issue_title"
+                style="width: 100%"
+                placeholder="Title"
+              />
+              <a-textarea
+                v-model:value="projectInputState.new_issue_description"
+                style="width: 100%"
+                placeholder="Description"
+                :rows="4"
+              />
+            </a-flex>
+          </a-modal>
+        </a-flex>
+      </template>
+      <a-table :columns="issue_columns" :data-source="issue_data_source.open" bordered>
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.dataIndex === 'operation'">
+            <a-button key="1" type="primary" @click="onCloseIssue(record.key)">
+              <template #icon>
+                <CheckOutlined />
+              </template>
+              Close
+            </a-button>
+          </template>
+        </template>
+        <template #footer>
+          <a-flex gap="small" horizontal>
+            <a-input
+              v-model:value="projectInputState.new_issue_title"
+              style="width: 30%"
+              placeholder="Title (Enter to open)"
+              @pressEnter="onOpenNewIssue"
+            />
+            <a-textarea
+              v-model:value="projectInputState.new_issue_description"
+              placeholder="Description"
+              :rows="1"
+            />
+            <a-button key="1" type="primary" @click="onOpenNewIssue">
+              <PlusCircleOutlined />
+              Quick Open
+            </a-button>
+          </a-flex>
+        </template>
+      </a-table>
+    </a-card>
+    <br />
+    <a-card title="Closed Issues" style="width: 100%">
+      <a-table :columns="issue_columns" :data-source="issue_data_source.closed" bordered>
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.dataIndex === 'operation'">
+            <a-button key="1" type="primary" danger @click="onDeleteIssue(record.key)">
+              <template #icon>
+                <DeleteOutlined />
+              </template>
+              Delete
+            </a-button>
+          </template>
+        </template>
+      </a-table>
+    </a-card>
   </a-layout-content>
   <a-page-header
     class="project-page-header"
@@ -169,6 +245,7 @@ import { message } from 'ant-design-vue'
 import type { SelectProps } from 'ant-design-vue'
 import {
   CheckCircleOutlined,
+  CheckOutlined,
   DeleteOutlined,
   SyncOutlined,
   PlusCircleOutlined,
@@ -236,8 +313,8 @@ const projectTaskStatistics = computed(() => {
   if (currentProject.value && currentProject.value.metadata) {
     for (const item in currentProject.value.metadata) {
       const meta = currentProject.value.metadata[item]
-      if ('status' in meta) {
-        const task_status = meta['status']
+      if (meta.status) {
+        const task_status = meta.status
         if (task_status === 'Done') {
           n_tasks_done++
         } else if (task_status === 'Active') {
@@ -516,7 +593,7 @@ const initCytoscape = () => {
 // ========== TaskGraph Logic =========
 const projectInputState = projectOperationInputStore.projectWorkspaceInputState
 
-function get_selected_task_meta() {
+const selectedTaskMeta = computed(() => {
   if (!currentProject.value) {
     return null
   }
@@ -527,33 +604,33 @@ function get_selected_task_meta() {
     return null
   }
   return currentProject.value.metadata[projectInputState.selected_node]
-}
-
-const selectedTaskName = computed(() => {
-  let meta = get_selected_task_meta()
-  return meta ? meta['name'] : 'No Task Selected'
 })
 
-const selectedTaskDetail = computed(() => {
-  let meta = get_selected_task_meta()
-  return meta ? meta['detail'] ?? 'No Detail Available' : 'No Detail Available'
-})
+const selectedTaskName = computed(() =>
+  selectedTaskMeta.value ? selectedTaskMeta.value.name ?? 'No Name Available' : 'No Task Selected'
+)
 
-const selectedTaskStatus = computed(() => {
-  let meta = get_selected_task_meta()
-  return meta ? meta['status'] : null
-})
+const selectedTaskDetail = computed(() =>
+  selectedTaskMeta.value
+    ? selectedTaskMeta.value.detail ?? 'No Detail Available'
+    : 'No Detail Available'
+)
+
+const selectedTaskStatus = computed(() =>
+  selectedTaskMeta.value ? selectedTaskMeta.value.status : null
+)
+
+const selectedTaskIssues = computed(() =>
+  selectedTaskMeta.value ? selectedTaskMeta.value.issues : null
+)
 
 const selectedTaskSnoozeUntilFormatted = computed(() => {
-  let meta = get_selected_task_meta()
-  if (meta === null) {
-    return null
-  } else if (meta.wake_after) {
-    const date_snooze = new Date(meta.wake_after * 1000)
+  const wake_after = selectedTaskMeta.value?.wake_after
+  if (wake_after) {
+    const date_snooze = new Date(wake_after * 1000)
     return date_snooze.toString()
-  } else {
-    return null
   }
+  return null
 })
 
 async function handleCytoscapeLayoutSelectChange() {
@@ -806,11 +883,153 @@ async function snoozeTask() {
   if (projectUUID.value) await readProject(projectUUID.value).then(() => initCytoscape())
 }
 
-async function onChangeTaskStatus() {}
+const newIssueModalOpen = ref<boolean>(false)
 
-async function onEditTaskName() {}
+const showNewIssueModal = () => {
+  if (projectInputState.selected_node) {
+    newIssueModalOpen.value = true
+  } else {
+    message.error(
+      'Please select a task before the operation \
+      (click a task in the DAG View to select it)'
+    )
+  }
+}
 
-async function onEditTaskDetail() {}
+const handleNewIssueModalOk = (_e: MouseEvent) => {
+  onOpenNewIssue()
+  newIssueModalOpen.value = false
+}
+
+const issue_data_source = computed(() => {
+  if (selectedTaskMeta.value && selectedTaskMeta.value.issues) {
+    let dataSourceOpen = []
+    let dataSourceClosed = []
+    for (const item in selectedTaskMeta.value.issues) {
+      if ('Open' == selectedTaskMeta.value.issues[item].status) {
+        dataSourceOpen.push({
+          title: selectedTaskMeta.value.issues[item].title,
+          description: selectedTaskMeta.value.issues[item].description,
+          key: item
+        })
+      } else {
+        dataSourceClosed.push({
+          title: selectedTaskMeta.value.issues[item].title,
+          description: selectedTaskMeta.value.issues[item].description,
+          key: item
+        })
+      }
+    }
+    return {
+      open: dataSourceOpen,
+      closed: dataSourceClosed
+    }
+  } else
+    return {
+      open: [],
+      closed: []
+    }
+})
+
+const issue_columns = [
+  {
+    title: 'Title',
+    dataIndex: 'title',
+    key: 'title'
+  },
+  {
+    title: 'Description',
+    dataIndex: 'description',
+    key: 'description'
+  },
+  {
+    title: 'Operation',
+    dataIndex: 'operation',
+    key: 'operation'
+  }
+]
+
+async function onOpenNewIssue() {
+  if (projectInputState.selected_node) {
+    await callRESTfulAPI(
+      `projects/${projectUUID.value}`,
+      'POST',
+      JSON.stringify({
+        open_issue: {
+          task_uuid: projectInputState.selected_node,
+          title: projectInputState.new_issue_title,
+          description: projectInputState.new_issue_description
+        }
+      })
+    ).then((response) => {
+      if (response?.result == 'OK') {
+        message.warning('Issue opened')
+      }
+    })
+  } else {
+    message.error(
+      'Please select a task before the operation \
+      (click a task in the DAG View to select it)'
+    )
+  }
+  // because issue operations do not change task topology, no need to re-render cytoscape,
+  // just read back from API server to confirm changes.
+  if (projectUUID.value) await readProject(projectUUID.value)
+}
+
+async function onCloseIssue(issue_uuid: string) {
+  if (projectInputState.selected_node) {
+    await callRESTfulAPI(
+      `projects/${projectUUID.value}`,
+      'POST',
+      JSON.stringify({
+        close_issue: {
+          task_uuid: projectInputState.selected_node,
+          issue_uuid: issue_uuid
+        }
+      })
+    ).then((response) => {
+      if (response?.result == 'OK') {
+        message.warning('Issue closed')
+      }
+    })
+  } else {
+    message.error(
+      'Please select a task before the operation \
+      (click a task in the DAG View to select it)'
+    )
+  }
+  // because issue operations do not change task topology, no need to re-render cytoscape,
+  // just read back from API server to confirm changes.
+  if (projectUUID.value) await readProject(projectUUID.value)
+}
+
+async function onDeleteIssue(issue_uuid: string) {
+  if (projectInputState.selected_node) {
+    await callRESTfulAPI(
+      `projects/${projectUUID.value}`,
+      'POST',
+      JSON.stringify({
+        delete_issue: {
+          task_uuid: projectInputState.selected_node,
+          issue_uuid: issue_uuid
+        }
+      })
+    ).then((response) => {
+      if (response?.result == 'OK') {
+        message.warning('Issue deleted')
+      }
+    })
+  } else {
+    message.error(
+      'Please select a task before the operation \
+      (click a task in the DAG View to select it)'
+    )
+  }
+  // because issue operations do not change task topology, no need to re-render cytoscape,
+  // just read back from API server to confirm changes.
+  if (projectUUID.value) await readProject(projectUUID.value)
+}
 </script>
 
 <style scoped>

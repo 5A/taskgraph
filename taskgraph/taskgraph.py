@@ -311,6 +311,16 @@ class TaskGraphProject:
         task_meta.issues[issue_uuid].status = IssueStatus.closed.value
         task_meta.issues[issue_uuid].close_reason = reason
 
+    def task_delete_issue(self, task_uuid: str, issue_uuid: str):
+        """
+        Deletes an issue (Closed issues are still saved in database, deleted issues are gone forever)
+        """
+        task_meta = self.metadata[task_uuid]
+        if task_meta.issues is None:
+            raise ValueError(
+                "No issues created for task {} yet!".format(task_uuid))
+        task_meta.issues.pop(issue_uuid)
+
     def get_tasks_by_status(self, status: TaskStatus = TaskStatus.active) -> dict[str, TaskGraphTaskMetadataItem]:
         tasks = dict(
             filter(

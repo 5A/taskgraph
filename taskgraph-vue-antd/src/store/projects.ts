@@ -79,6 +79,8 @@ export interface ProjectWorkspaceInputState {
   task_toolbox_location_select: string
   add_dependency_selected_nodes: Array<string>
   snooze_task_until: Dayjs | null
+  new_issue_title: string
+  new_issue_description: string
 }
 
 // This store is for project operation inputs
@@ -100,7 +102,9 @@ export const useProjectOperationInputStore = defineStore(
       add_new_task_detail: '',
       task_toolbox_location_select: 'sub',
       add_dependency_selected_nodes: [],
-      snooze_task_until: null
+      snooze_task_until: null,
+      new_issue_title: '',
+      new_issue_description: ''
     })
     return {
       newProjectInputState,

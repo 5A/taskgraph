@@ -195,6 +195,9 @@ async def modify_project(project_uuid: str, mod_data: ModifyProjectData,
         proj.task_close_issue(task_uuid=mod_data.close_issue.task_uuid,
                               issue_uuid=mod_data.close_issue.issue_uuid,
                               reason=mod_data.close_issue.reason)
+    if mod_data.delete_issue is not None:
+        proj.task_delete_issue(task_uuid=mod_data.delete_issue.task_uuid,
+                               issue_uuid=mod_data.delete_issue.issue_uuid)
 
     return ModifyProjectReport(result="OK")
 
