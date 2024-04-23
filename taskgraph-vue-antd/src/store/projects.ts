@@ -76,6 +76,8 @@ export interface ProjectWorkspaceInputState {
   previous_selected_edge: string | null
   add_new_task_name: string
   add_new_task_detail: string
+  edit_task_name: string
+  edit_task_detail: string
   task_toolbox_location_select: string
   add_dependency_selected_nodes: Array<string>
   snooze_task_until: Dayjs | null
@@ -100,6 +102,8 @@ export const useProjectOperationInputStore = defineStore(
       previous_selected_edge: null,
       add_new_task_name: '',
       add_new_task_detail: '',
+      edit_task_name: '',
+      edit_task_detail: '',
       task_toolbox_location_select: 'sub',
       add_dependency_selected_nodes: [],
       snooze_task_until: null,

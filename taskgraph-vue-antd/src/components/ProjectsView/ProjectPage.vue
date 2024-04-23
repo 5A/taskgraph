@@ -83,11 +83,31 @@
     <a-card :title="`Task: ${selectedTaskName}`" style="width: 100%">
       <template #extra>
         <a-flex gap="small">
-          <a-button key="1" @click="onSetTaskDone" type="primary">
+          <a-input
+            v-if="isEditingTaskInDetailView"
+            key="1"
+            v-model:value="projectInputState.edit_task_name"
+            style="width: 100%"
+            placeholder="New Title"
+          />
+          <a-button v-if="!isEditingTaskInDetailView" key="2" @click="onEditTaskInDetailView">
+            <EditOutlined />
+            Edit
+          </a-button>
+          <a-button
+            v-if="isEditingTaskInDetailView"
+            key="3"
+            @click="onSaveTaskInDetailView"
+            type="primary"
+          >
+            <SaveOutlined />
+            Save
+          </a-button>
+          <a-button key="4" @click="onSetTaskDone" type="primary">
             <CheckCircleOutlined />
             Done
           </a-button>
-          <a-button key="2" @click="showSnoozeTaskModal" type="primary">
+          <a-button key="5" @click="showSnoozeTaskModal" type="primary">
             <PauseCircleOutlined />
             Snooze
           </a-button>
@@ -103,7 +123,7 @@
               style="width: 100%"
             />
           </a-modal>
-          <a-button key="3" type="primary" danger @click="onRemoveTask">
+          <a-button key="6" type="primary" danger @click="onRemoveTask">
             <DeleteOutlined />
             Remove
           </a-button>
@@ -113,7 +133,14 @@
         <a-alert :message="`Snoozed until: ${selectedTaskSnoozeUntilFormatted}`" type="success" />
         <br />
       </template>
-      <p style="white-space: pre-wrap">{{ selectedTaskDetail }}</p>
+      <a-textarea
+        v-if="isEditingTaskInDetailView"
+        v-model:value="projectInputState.edit_task_detail"
+        style="width: 100%"
+        placeholder="Detail"
+        :rows="20"
+      />
+      <p v-else style="white-space: pre-wrap">{{ selectedTaskDetail }}</p>
     </a-card>
     <br />
     <a-card title="Issues" style="width: 100%">
@@ -246,6 +273,8 @@ import type { SelectProps } from 'ant-design-vue'
 import {
   CheckCircleOutlined,
   CheckOutlined,
+  EditOutlined,
+  SaveOutlined,
   DeleteOutlined,
   SyncOutlined,
   PlusCircleOutlined,
@@ -571,6 +600,8 @@ const initCytoscape = () => {
     maxZoom: 2.0
   })
   cytoscapeInstance.value.on('tap', 'node', function (evt) {
+    // [TODO]: move this piece of code to a seperate function, e.g. onTaskSelected(str new_id)
+    // a task is selected, save the selection in input store and highlight it in DAG view
     var node = evt.target
     projectInputState.previous_selected_node = projectInputState.selected_node
     projectInputState.selected_node = node.id()
@@ -578,6 +609,10 @@ const initCytoscape = () => {
       cytoscapeInstance.value?.$id(projectInputState.previous_selected_node).removeClass('selected')
     }
     node.addClass('selected')
+    // when selecting a task, if the original task is under editing, abort the editing.
+    if (isEditingTaskInDetailView.value) {
+      isEditingTaskInDetailView.value = false
+    }
   })
   cytoscapeInstance.value.on('tap', 'edge', function (evt) {
     var edge = evt.target
@@ -880,6 +915,50 @@ async function snoozeTask() {
     )
   }
   projectInputState.selected_node = null
+  if (projectUUID.value) await readProject(projectUUID.value).then(() => initCytoscape())
+}
+
+const isEditingTaskInDetailView = ref<boolean>(false)
+
+function onEditTaskInDetailView() {
+  if (projectInputState.selected_node) {
+    // copy current task name and detail to inputs
+    projectInputState.edit_task_name = selectedTaskName.value
+    projectInputState.edit_task_detail = selectedTaskDetail.value
+    // show editing input elements
+    isEditingTaskInDetailView.value = true
+  } else {
+    message.error(
+      'Please select a task before editing \
+      (click a task in the DAG View to select it)'
+    )
+  }
+}
+
+async function onSaveTaskInDetailView() {
+  if (projectInputState.selected_node) {
+    await callRESTfulAPI(
+      `projects/${projectUUID.value}`,
+      'POST',
+      JSON.stringify({
+        modify_task: {
+          uuid: projectInputState.selected_node,
+          name: projectInputState.edit_task_name,
+          detail: projectInputState.edit_task_detail
+        }
+      })
+    ).then((response) => {
+      if (response?.result == 'OK') {
+        message.info('Task modified')
+        isEditingTaskInDetailView.value = false
+      }
+    })
+  } else {
+    message.error(
+      'Please select a task before editing \
+      (click a task in the DAG View to select it)'
+    )
+  }
   if (projectUUID.value) await readProject(projectUUID.value).then(() => initCytoscape())
 }
 

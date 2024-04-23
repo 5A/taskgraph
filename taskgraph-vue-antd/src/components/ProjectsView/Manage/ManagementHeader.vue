@@ -20,11 +20,17 @@
 </template>
 
 <script lang="ts" setup>
+import { onMounted } from 'vue'
 import { SyncOutlined } from '@ant-design/icons-vue'
 import { useProjectListStore } from '@/store/projects'
 import { callRESTfulAPI } from '@/common/connection'
 
 const projectListStore = useProjectListStore()
+
+onMounted(() => {
+  // When user loads this page, automatically refresh the project list
+  onSyncStatus()
+})
 
 async function onSyncStatus() {
   // retrive a list of projects by GET
