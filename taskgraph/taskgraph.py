@@ -173,6 +173,14 @@ class TaskGraphProject:
         """
         Analyzes status of a given task in the project DAG to resolve dependency
         """
+        # rule -1: if the task is already removed, it cannot has a status
+        # this should normally not happen, so a warning is emitted
+        if task_uuid not in self.metadata:
+            lg.warning(
+                "Task {} does not exist in current project, thus asking to resolve its dependency failed and nothing is changed.".format(task_uuid))
+            lg.warning(
+                "This usually happens when an action is scheduled for the task, but the task is removed manually before the action get executed.")
+            return
         # rule 0: if a task is done, it is done forever unless it is revived
         if TaskStatus.done.value == self.metadata[task_uuid].status:
             return
@@ -545,7 +553,17 @@ class TaskGraphScheduler:
             event_data: EventTaskWakeUp = self.event_map[event_uuid]
             project_uuid = event_data.project_uuid
             task_uuid = event_data.task_uuid
+            # we need to check if the project and the task still exist before
+            # processing wake_up event
+            if project_uuid not in self.tg.projects:
+                lg.warning("When processing wake_up event for task {} for project {}, the project does not exist in current database. The project is probably removed before this action.".format(
+                    task_uuid, project_uuid))
+                return
             target_project = self.tg.projects[project_uuid]
+            if task_uuid not in target_project.metadata:
+                lg.warning("When processing wake_up event for task {} in project {}, the task does not exist in the project. The task is probably removed before this action.".format(
+                    task_uuid, project_uuid))
+                return
             # check dependency to determine if it should be pending or active.
             # resolve_dependency will check wake_after metadata attached to the
             # task again to determine if it is really time to wake up, because
