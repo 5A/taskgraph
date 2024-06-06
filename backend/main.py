@@ -70,7 +70,7 @@ async def lifespan(app: FastAPI):
     db_mgr.save_scheduler_database()
     lg.info("Saving projects data to database file ")
     # Explicitly set check_hash to False to force overwriting files at exit.
-    # This is nonsense if everything goes right, but if something went wrong 
+    # This is nonsense if everything goes right, but if something went wrong
     # this should be able to keep some data consistency at least.
     db_mgr.save_database(check_hash=False)
 
@@ -187,7 +187,8 @@ async def modify_project(project_uuid: str, mod_data: ModifyProjectData,
         )
     if mod_data.snooze_task is not None:
         proj.task_snooze(mod_data.snooze_task.uuid,
-                         mod_data.snooze_task.snooze_until)
+                         mod_data.snooze_task.snooze_until,
+                         mod_data.snooze_task.reason)
         tg_sch.schedule(mod_data.snooze_task.snooze_until,
                         TaskGraphEvents.wake_up.value,
                         EventTaskWakeUp(

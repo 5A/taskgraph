@@ -77,6 +77,7 @@ class RemoveDependencyData(BaseModel):
 class SnoozeTaskData(BaseModel):
     uuid: str
     snooze_until: float
+    reason: str
 
 
 class OpenIssueData(BaseModel):

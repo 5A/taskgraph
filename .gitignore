@@ -1,5 +1,7 @@
 # This project
 .vscode
+backup
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -9,8 +9,8 @@
   },
   "CORS": {
     "origins": [
-      "http://app.taskgraph.org:8080",
-      "https://app.taskgraph.org:8080",
+      "http://dev.taskgraph.org:8080",
+      "https://app.taskgraph.org",
       "http://localhost:8080",
       "http://127.0.0.1:8080"
     ],

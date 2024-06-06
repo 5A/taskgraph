@@ -77,6 +77,7 @@ class TaskGraphTaskMetadataItem(BaseModel):
     detail: Optional[str] = None
     status: Optional[str] = None
     wake_after: Optional[float] = None
+    snooze_reason: Optional[str] = None
     remind_after: Optional[float] = None
     issues: Optional[dict[str, TaskGraphIssue]] = None
 
@@ -278,7 +279,7 @@ class TaskGraphProject:
         for node in self.dag.successors(task_uuid):
             self.resolve_dependency(node)
 
-    def task_snooze(self, task_uuid: str, snooze_until: float):
+    def task_snooze(self, task_uuid: str, snooze_until: float, reason: Optional[str] = None):
         """
         Marks a task as snoozed, removing it from active task list and do not resolve its
         children's dependency.
@@ -287,6 +288,7 @@ class TaskGraphProject:
         """
         self.metadata[task_uuid].status = TaskStatus.snoozed.value
         self.metadata[task_uuid].wake_after = snooze_until
+        self.metadata[task_uuid].snooze_reason = reason
 
     def task_add_reminder(self, task_uuid: str, remind_after: float):
         """
