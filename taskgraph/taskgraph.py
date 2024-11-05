@@ -62,6 +62,9 @@ class IssueStatus(Enum):
 
 
 class TaskGraphIssue(BaseModel):
+    """
+    Stores issue item data
+    """
     title: str
     status: str
     description: Optional[str] = None
@@ -319,8 +322,41 @@ class TaskGraphProject:
         if task_meta.issues is None:
             raise ValueError(
                 "No issues created for task {} yet!".format(task_uuid))
+        if issue_uuid not in task_meta.issues:
+            raise ValueError(
+                "issue_uuid does not exist in list, already removed or not created yet.")
         task_meta.issues[issue_uuid].status = IssueStatus.closed.value
         task_meta.issues[issue_uuid].close_reason = reason
+
+    def task_modify_issue(self, task_uuid: str, issue_uuid: str,
+                          title: Optional[str] = None, description: Optional[str] = None):
+        """
+        Modify issue data (title, description)
+        """
+        task_meta = self.metadata[task_uuid]
+        if task_meta.issues is None:
+            raise ValueError(
+                "No issues created for task {} yet!".format(task_uuid))
+        if issue_uuid not in task_meta.issues:
+            raise ValueError(
+                "issue_uuid does not exist in list, already removed or not created yet.")
+        if title is not None:
+            task_meta.issues[issue_uuid].title = title
+        if description is not None:
+            task_meta.issues[issue_uuid].description = description
+
+    def task_reopen_issue(self, task_uuid: str, issue_uuid: str):
+        """
+        Re-opens a closed issue.
+        """
+        task_meta = self.metadata[task_uuid]
+        if task_meta.issues is None:
+            raise ValueError(
+                "No issues created for task {} yet!".format(task_uuid))
+        if issue_uuid not in task_meta.issues:
+            raise ValueError(
+                "issue_uuid does not exist in list, already removed or not created yet.")
+        task_meta.issues[issue_uuid].status = IssueStatus.open.value
 
     def task_delete_issue(self, task_uuid: str, issue_uuid: str):
         """

@@ -92,6 +92,18 @@ class CloseIssueData(BaseModel):
     reason: Optional[str] = None
 
 
+class ModifyIssueData(BaseModel):
+    task_uuid: str
+    issue_uuid: str
+    title: Optional[str] = None
+    description: Optional[str] = None
+
+
+class ReopenIssueData(BaseModel):
+    task_uuid: str
+    issue_uuid: str
+
+
 class DeleteIssueData(BaseModel):
     task_uuid: str
     issue_uuid: str
@@ -126,6 +138,12 @@ class ModifyProjectData(BaseModel):
         None, description=""
     )
     close_issue: Optional[CloseIssueData] = Field(
+        None, description=""
+    )
+    modify_issue: Optional[ModifyIssueData] = Field(
+        None, description=""
+    )
+    reopen_issue: Optional[ReopenIssueData] = Field(
         None, description=""
     )
     delete_issue: Optional[DeleteIssueData] = Field(

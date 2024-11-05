@@ -203,6 +203,14 @@ async def modify_project(project_uuid: str, mod_data: ModifyProjectData,
         proj.task_close_issue(task_uuid=mod_data.close_issue.task_uuid,
                               issue_uuid=mod_data.close_issue.issue_uuid,
                               reason=mod_data.close_issue.reason)
+    if mod_data.modify_issue is not None:
+        proj.task_modify_issue(task_uuid=mod_data.modify_issue.task_uuid,
+                              issue_uuid=mod_data.modify_issue.issue_uuid,
+                              title=mod_data.modify_issue.title,
+                              description=mod_data.modify_issue.description)
+    if mod_data.reopen_issue is not None:
+        proj.task_reopen_issue(task_uuid=mod_data.reopen_issue.task_uuid,
+                               issue_uuid=mod_data.reopen_issue.issue_uuid)
     if mod_data.delete_issue is not None:
         proj.task_delete_issue(task_uuid=mod_data.delete_issue.task_uuid,
                                issue_uuid=mod_data.delete_issue.issue_uuid)
