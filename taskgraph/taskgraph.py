@@ -368,6 +368,27 @@ class TaskGraphProject:
                 "No issues created for task {} yet!".format(task_uuid))
         task_meta.issues.pop(issue_uuid)
 
+    def task_raise_issue(self, task_uuid: str, issue_uuid: str):
+        """
+        Raises an issue to a sub-task of current task
+        (Converts issue to task)
+        """
+        task_meta = self.metadata[task_uuid]
+        if task_meta.issues is None:
+            raise ValueError(
+                "No issues created for task {} yet!".format(task_uuid))
+        if issue_uuid not in task_meta.issues:
+            raise ValueError(
+                "Issue does not exist in task!")
+        issue = task_meta.issues[issue_uuid]
+        # Add new sub-task, map data between issue and task
+        sub_task_meta = TaskGraphTaskMetadataItem()
+        sub_task_meta.name = issue.title
+        sub_task_meta.detail = issue.description
+        self.add_sub_task(task_uuid, meta=sub_task_meta)
+        # Remove converted issue
+        task_meta.issues.pop(issue_uuid)
+
     def get_tasks_by_status(self, status: TaskStatus = TaskStatus.active) -> dict[str, TaskGraphTaskMetadataItem]:
         tasks = dict(
             filter(
