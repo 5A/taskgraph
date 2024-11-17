@@ -70,6 +70,8 @@ class TaskGraphIssue(BaseModel):
     description: Optional[str] = None
     labels: Optional[list[str]] = None
     close_reason: Optional[str] = None
+    time_close: Optional[float] = None # Timestamp, unit in seconds
+    last_modify: Optional[float] = None # Timestamp, unit in seconds
 
 
 class TaskGraphTaskMetadataItem(BaseModel):
@@ -79,9 +81,9 @@ class TaskGraphTaskMetadataItem(BaseModel):
     name: Optional[str] = None
     detail: Optional[str] = None
     status: Optional[str] = None
-    wake_after: Optional[float] = None
+    wake_after: Optional[float] = None # Timestamp, unit in seconds
     snooze_reason: Optional[str] = None
-    remind_after: Optional[float] = None
+    remind_after: Optional[float] = None # Timestamp, unit in seconds
     issues: Optional[dict[str, TaskGraphIssue]] = None
 
 
@@ -309,8 +311,12 @@ class TaskGraphProject:
             # create issues metadata item if it does not exist yet
             task_meta.issues = dict()
         issue_uuid = uuid.uuid4().__str__()
+        issue_last_modify = time.time()
         issue_data = TaskGraphIssue(
-            title=title, status=IssueStatus.open.value, description=description)
+            title=title, 
+            status=IssueStatus.open.value, 
+            description=description,
+            last_modify=issue_last_modify)
         task_meta.issues[issue_uuid] = issue_data
         return issue_uuid
 
@@ -327,6 +333,7 @@ class TaskGraphProject:
                 "issue_uuid does not exist in list, already removed or not created yet.")
         task_meta.issues[issue_uuid].status = IssueStatus.closed.value
         task_meta.issues[issue_uuid].close_reason = reason
+        task_meta.issues[issue_uuid].time_close = time.time()
 
     def task_modify_issue(self, task_uuid: str, issue_uuid: str,
                           title: Optional[str] = None, description: Optional[str] = None):
@@ -344,6 +351,7 @@ class TaskGraphProject:
             task_meta.issues[issue_uuid].title = title
         if description is not None:
             task_meta.issues[issue_uuid].description = description
+        task_meta.issues[issue_uuid].last_modify = time.time()
 
     def task_reopen_issue(self, task_uuid: str, issue_uuid: str):
         """
