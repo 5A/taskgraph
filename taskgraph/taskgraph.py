@@ -70,8 +70,8 @@ class TaskGraphIssue(BaseModel):
     description: Optional[str] = None
     labels: Optional[list[str]] = None
     close_reason: Optional[str] = None
-    time_close: Optional[float] = None # Timestamp, unit in seconds
-    last_modify: Optional[float] = None # Timestamp, unit in seconds
+    time_close: Optional[float] = None  # Timestamp, unit in seconds
+    last_modify: Optional[float] = None  # Timestamp, unit in seconds
 
 
 class TaskGraphTaskMetadataItem(BaseModel):
@@ -81,9 +81,11 @@ class TaskGraphTaskMetadataItem(BaseModel):
     name: Optional[str] = None
     detail: Optional[str] = None
     status: Optional[str] = None
-    wake_after: Optional[float] = None # Timestamp, unit in seconds
+    wake_after: Optional[float] = None  # Timestamp, unit in seconds
     snooze_reason: Optional[str] = None
-    remind_after: Optional[float] = None # Timestamp, unit in seconds
+    remind_after: Optional[float] = None  # Timestamp, unit in seconds
+    last_modify: Optional[float] = None  # Timestamp, unit in seconds
+    time_done: Optional[float] = None  # Timestamp, unit in seconds
     issues: Optional[dict[str, TaskGraphIssue]] = None
 
 
@@ -224,6 +226,7 @@ class TaskGraphProject:
         self.add_dependency(parent, dep=task_uuid)
         # mark status of tasks
         self.metadata[task_uuid].status = TaskStatus.active.value
+        self.metadata[task_uuid].last_modify = time.time()
         return task_uuid
 
     def add_super_task(self, child: str, meta: TaskGraphTaskMetadataItem | None = None) -> str:
@@ -239,7 +242,24 @@ class TaskGraphProject:
         self.dag.add_node(task_uuid)
         # add dependency for the task, the new super-task will depend on the child task
         self.add_dependency(task_uuid, dep=child)
+        self.metadata[task_uuid].last_modify = time.time()
         return task_uuid
+
+    def modify_task_metadata(self, task_uuid: str, meta: TaskGraphTaskMetadataItem):
+        """
+        Modify several metadata for a single task all at once.
+        Non-empty fields in meta are updated, while None-valued fields are ignored and not modified.
+        """
+        if task_uuid not in self.dag.nodes:
+            raise ValueError(
+                "Modifying non-existent task {}!".format(task_uuid))
+        if meta.name is not None:
+            self.metadata[task_uuid].name = meta.name
+        if meta.detail is not None:
+            self.metadata[task_uuid].detail = meta.detail
+        if meta.status is not None:
+            self.metadata[task_uuid].status = meta.status
+        self.metadata[task_uuid].last_modify = time.time()
 
     def add_dependency(self, task_uuid: str, dep: str):
         """
@@ -281,6 +301,7 @@ class TaskGraphProject:
         Marks a task as done, resolving its children's dependency
         """
         self.metadata[task_uuid].status = TaskStatus.done.value
+        self.metadata[task_uuid].time_done = time.time()
         for node in self.dag.successors(task_uuid):
             self.resolve_dependency(node)
 
@@ -313,8 +334,8 @@ class TaskGraphProject:
         issue_uuid = uuid.uuid4().__str__()
         issue_last_modify = time.time()
         issue_data = TaskGraphIssue(
-            title=title, 
-            status=IssueStatus.open.value, 
+            title=title,
+            status=IssueStatus.open.value,
             description=description,
             last_modify=issue_last_modify)
         task_meta.issues[issue_uuid] = issue_data

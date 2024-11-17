@@ -167,10 +167,12 @@ async def modify_project(project_uuid: str, mod_data: ModifyProjectData,
             meta.detail = mod_data.add_super_task.detail
         proj.add_super_task(mod_data.add_super_task.child, meta=meta)
     if mod_data.modify_task is not None:
+        meta = TaskGraphTaskMetadataItem()
         if mod_data.modify_task.name is not None:
-            proj.metadata[mod_data.modify_task.uuid].name = mod_data.modify_task.name
+            meta.name = mod_data.modify_task.name
         if mod_data.modify_task.detail is not None:
-            proj.metadata[mod_data.modify_task.uuid].detail = mod_data.modify_task.detail
+            meta.detail = mod_data.modify_task.detail
+        proj.modify_task_metadata(mod_data.modify_task.uuid, meta=meta)
     if mod_data.update_task_status is not None:
         data = mod_data.update_task_status
         if TaskStatus.done.value == data.status.value:
